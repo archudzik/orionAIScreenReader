@@ -56,7 +56,7 @@ class MyAccessibilityService : AccessibilityService() {
         SafetySetting(HarmCategory.DANGEROUS_CONTENT, BlockThreshold.NONE),
     )
 
-    private var appLanguage = "PL"
+    private var appLanguage = "EN"
     private val appStrings = mapOf(
         "PL" to mapOf(
             "tts_voice" to "pol_POL_default",
