@@ -155,15 +155,19 @@ class ScreenCaptureForegroundService : Service() {
     }
 
     private fun saveBitmapToFile(bitmap: Bitmap, fileNameJpg: String): File? {
-        // Get the directory for saving the file
-        val directory =
-            Environment.getExternalStorageDirectory().absolutePath + "/Android/data/com.deltainteraction.orion/"
+        // Use app-specific directory that doesn't require permissions
+        val directory = getExternalFilesDir(null)?.absolutePath
+            ?: return null
+
         val dirFile = File(directory)
 
         // Create the directory if it does not exist
         if (!dirFile.exists()) {
-            dirFile.mkdirs()
-            dirFile.setWritable(true)
+            val created = dirFile.mkdirs()
+            if (!created) {
+                Log.e(TAG, "Failed to create directory: $directory")
+                return null
+            }
         }
 
         // Define the file object where the bitmap will be saved
@@ -171,16 +175,18 @@ class ScreenCaptureForegroundService : Service() {
         try {
             // Resize bitmap
             val resizedBitmap = resizeBitmap(bitmap, 1920)
-            // Compress the bitmap and save it in PNG format
+            // Compress the bitmap and save it in JPEG format
             val outStream = FileOutputStream(file)
             resizedBitmap.compress(Bitmap.CompressFormat.JPEG, 100, outStream)
             outStream.flush()
             outStream.close()
-            return file // Return the saved file
+            Log.i(TAG, "File saved to: ${file.absolutePath}")
+            return file
         } catch (e: IOException) {
+            Log.e(TAG, "Failed to save bitmap", e)
             e.printStackTrace()
         }
-        return null // Return null if saving fails
+        return null
     }
 
 

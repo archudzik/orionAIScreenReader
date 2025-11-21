@@ -2,11 +2,33 @@
     <string-array name="languages_entries">
         <item>Polski</item>
         <item>English</item>
+        <item>Español</item>
+        <item>Português</item>
+        <item>हिन्दी</item>
+        <item>বাংলা</item>
+        <item>العربية</item>
+        <item>Kiswahili</item>
+        <item>اردو</item>
+        <item>Tiếng Việt</item>
+        <item>Bahasa Indonesia</item>
+        <item>አማርኛ</item>
+        <item>Tagalog</item>
     </string-array>
 
     <string-array name="languages_values">
         <item>PL</item>
         <item>EN</item>
+        <item>ES</item>
+        <item>PT</item>
+        <item>HI</item>
+        <item>BN</item>
+        <item>AR</item>
+        <item>SW</item>
+        <item>UR</item>
+        <item>VI</item>
+        <item>ID</item>
+        <item>AM</item>
+        <item>TL</item>
     </string-array>
 
     <string-array name="speed_entries">

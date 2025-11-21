@@ -48,7 +48,7 @@ class MyAccessibilityService : AccessibilityService() {
 
     private var apiKey = BuildConfig.GEMINI_API_KEY
     private var generativeModel: GenerativeModel? = null
-    private val generativeModelName = "gemini-1.5-flash-latest"
+    private val generativeModelName = "gemini-2.5-flash"
     private val generativeModelConfig = generationConfig {
         temperature = 0.9f
     }
@@ -71,6 +71,83 @@ class MyAccessibilityService : AccessibilityService() {
             "read_screen" to "Read\nScreen",
             "processing" to "One moment...",
             "something_went_wrong" to "Something went wrong, try again"
+        ),
+        "ES" to mapOf(
+            "tts_voice" to "spa_ESP_default",
+            "prompt_read" to "Eres un asistente de IA que ayuda a una persona ciega. Tu tarea es leer el contenido de la pantalla, extraer información clave e informar a la persona sobre lo que está sucediendo en la pantalla. Después de tu análisis, la aplicación lo leerá en voz alta. Sé conciso. Comienza con: 'La pantalla muestra...'",
+            "read_screen" to "Leer\nPantalla",
+            "processing" to "Un momento...",
+            "something_went_wrong" to "Algo salió mal, intenta de nuevo"
+        ),
+        "PT" to mapOf(
+            "tts_voice" to "por_BRA_default",
+            "prompt_read" to "Você é um assistente de IA ajudando uma pessoa cega. Sua tarefa é ler o conteúdo da tela, extrair informações importantes e informar a pessoa sobre o que está acontecendo na tela. Após sua análise, o aplicativo lerá em voz alta. Seja conciso. Comece com: 'A tela mostra...'",
+            "read_screen" to "Ler\nTela",
+            "processing" to "Um momento...",
+            "something_went_wrong" to "Algo deu errado, tente novamente"
+        ),
+        "HI" to mapOf(
+            "tts_voice" to "hin_IND_default",
+            "prompt_read" to "आप एक AI सहायक हैं जो एक नेत्रहीन व्यक्ति की मदद कर रहे हैं। आपका कार्य स्क्रीन की सामग्री को पढ़ना, मुख्य जानकारी निकालना और व्यक्ति को बताना है कि स्क्रीन पर क्या हो रहा है। आपके विश्लेषण के बाद, एप्लिकेशन इसे जोर से पढ़ेगा। संक्षिप्त रहें। इस तरह शुरू करें: 'स्क्रीन दिखाती है...'",
+            "read_screen" to "स्क्रीन\nपढ़ें",
+            "processing" to "एक पल...",
+            "something_went_wrong" to "कुछ गलत हुआ, फिर से कोशिश करें"
+        ),
+        "BN" to mapOf(
+            "tts_voice" to "ben_IND_default",
+            "prompt_read" to "আপনি একজন AI সহায়ক যিনি একজন অন্ধ ব্যক্তিকে সাহায্য করছেন। আপনার কাজ হল স্ক্রিনের বিষয়বস্তু পড়া, মূল তথ্য বের করা এবং ব্যক্তিকে জানানো যে স্ক্রিনে কী ঘটছে। আপনার বিশ্লেষণের পরে, অ্যাপ্লিকেশনটি এটি জোরে পড়বে। সংক্ষিপ্ত থাকুন। এভাবে শুরু করুন: 'স্ক্রিনটি দেখায়...'",
+            "read_screen" to "স্ক্রীন\nপড়ুন",
+            "processing" to "একটু অপেক্ষা করুন...",
+            "something_went_wrong" to "কিছু ভুল হয়েছে, আবার চেষ্টা করুন"
+        ),
+        "AR" to mapOf(
+            "tts_voice" to "ara_EGY_default",
+            "prompt_read" to "أنت مساعد ذكاء اصطناعي تساعد شخصًا كفيفًا. مهمتك هي قراءة محتوى الشاشة واستخراج المعلومات الأساسية وإبلاغ الشخص بما يحدث على الشاشة. بعد تحليلك، سيقرأ التطبيق المحتوى بصوت عالٍ. كن موجزًا. ابدأ بـ: 'تظهر الشاشة...'",
+            "read_screen" to "قراءة\nالشاشة",
+            "processing" to "لحظة من فضلك...",
+            "something_went_wrong" to "حدث خطأ ما، حاول مرة أخرى"
+        ),
+        "SW" to mapOf(
+            "tts_voice" to "swa_KEN_default",
+            "prompt_read" to "Wewe ni msaidizi wa AI unayesaidia mtu asiyeona. Kazi yako ni kusoma maudhui ya skrini, kuchambua taarifa muhimu, na kumjulisha mtu kuhusu kinachoendelea kwenye skrini. Baada ya uchambuzi wako, programu itasoma kwa sauti. Fupi. Anza na: 'Skrini inaonyesha...'",
+            "read_screen" to "Soma\nSkrini",
+            "processing" to "Subiri kidogo...",
+            "something_went_wrong" to "Kuna hitilafu, jaribu tena"
+        ),
+        "UR" to mapOf(
+            "tts_voice" to "urd_PAK_default",
+            "prompt_read" to "آپ ایک AI معاون ہیں جو ایک نابینا شخص کی مدد کر رہے ہیں۔ آپ کا کام اسکرین کے مواد کو پڑھنا، اہم معلومات نکالنا اور شخص کو بتانا ہے کہ اسکرین پر کیا ہو رہا ہے۔ آپ کے تجزیے کے بعد، ایپلیکیشن اسے بلند آواز میں پڑھے گی۔ مختصر رہیں۔ اس طرح شروع کریں: 'اسکرین دکھاتی ہے...'",
+            "read_screen" to "اسکرین\nپڑھیں",
+            "processing" to "ایک لمحہ...",
+            "something_went_wrong" to "کچھ غلط ہوا، دوبارہ کوشش کریں"
+        ),
+        "VI" to mapOf(
+            "tts_voice" to "vie_VNM_default",
+            "prompt_read" to "Bạn là trợ lý AI giúp đỡ người mù. Nhiệm vụ của bạn là đọc nội dung màn hình, trích xuất thông tin quan trọng và thông báo cho người đó về những gì đang xảy ra trên màn hình. Sau khi phân tích, ứng dụng sẽ đọc to nội dung. Hãy ngắn gọn. Bắt đầu bằng: 'Màn hình hiển thị...'",
+            "read_screen" to "Đọc\nMàn hình",
+            "processing" to "Chờ chút...",
+            "something_went_wrong" to "Có lỗi xảy ra, thử lại"
+        ),
+        "ID" to mapOf(
+            "tts_voice" to "ind_IDN_default",
+            "prompt_read" to "Anda adalah asisten AI yang membantu orang buta. Tugas Anda adalah membaca konten layar, mengekstrak informasi penting, dan memberi tahu orang tersebut tentang apa yang terjadi di layar. Setelah analisis Anda, aplikasi akan membacanya dengan keras. Ringkas. Mulai dengan: 'Layar menampilkan...'",
+            "read_screen" to "Baca\nLayar",
+            "processing" to "Sebentar...",
+            "something_went_wrong" to "Terjadi kesalahan, coba lagi"
+        ),
+        "AM" to mapOf(
+            "tts_voice" to "amh_ETH_default",
+            "prompt_read" to "እርስዎ ዓይነ ስውር ሰውን የሚረዳ AI ረዳት ነዎት። ስራዎ የማያ ገጹን ይዘት ማንበብ፣ ቁልፍ መረጃን ማውጣት እና ሰውየው በማያ ገጹ ላይ ስለሚከሰተው ነገር ማሳወቅ ነው። ከትንተናዎ በኋላ አፕሊኬሽኑ በጮክ ያነባል። አጭር ይሁኑ። እንደዚህ ይጀምሩ: 'ማያ ገጹ ያሳያል...'",
+            "read_screen" to "ማያ ገጽ\nአንብብ",
+            "processing" to "ትንሽ ይጠብቁ...",
+            "something_went_wrong" to "ስህተት ተፈጥሯል፣ እንደገና ይሞክሩ"
+        ),
+        "TL" to mapOf(
+            "tts_voice" to "tgl_PHL_default",
+            "prompt_read" to "Ikaw ay isang AI assistant na tumutulong sa isang bulag na tao. Ang iyong tungkulin ay basahin ang nilalaman ng screen, kunin ang mahalagang impormasyon, at ipaalam sa tao kung ano ang nangyayari sa screen. Pagkatapos ng iyong pagsusuri, babasahin ng application ito nang malakas. Maging maigsi. Magsimula sa: 'Ang screen ay nagpapakita...'",
+            "read_screen" to "Basahin\nang Screen",
+            "processing" to "Sandali lang...",
+            "something_went_wrong" to "May naganap na mali, subukan ulit"
         )
     )
 
