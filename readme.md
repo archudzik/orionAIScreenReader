@@ -41,7 +41,7 @@ Orion bridges the accessibility gap, helping visually impaired individuals inter
 - **Internet Connection**: Orion needs a stable internet connection to process snapshots using Gemini AI.
 
 ### Installation
-1. **Download**: Install the Orion APK on your Android device. **Find the latest release APKs here:** [https://github.com/archudzik/orionAIScreenReader/tree/master/app/release](https://github.com/archudzik/orionAIScreenReader/releases)
+1. **Download**: Install the Orion APK on your Android device. **Find the latest release APKs here:** [https://github.com/archudzik/orionAIScreenReader/releases](https://github.com/archudzik/orionAIScreenReader/releases)
 2. **Accessibility Permissions**: Enable the accessibility service for Orion via Settings to allow screen reading.
 3. **API Token Setup**: Go to the [Google AI Studio](https://aistudio.google.com/app/apikey) to get your free API Token.
 
