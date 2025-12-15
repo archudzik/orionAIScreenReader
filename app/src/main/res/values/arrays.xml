@@ -46,4 +46,14 @@
         <item>1.5</item>
         <item>2.0</item>
     </string-array>
+
+    <string-array name="reading_mode_entries">
+        <item>Describe screen</item>
+        <item>Read text aloud</item>
+    </string-array>
+
+    <string-array name="reading_mode_values">
+        <item>prompt_read</item>
+        <item>prompt_aloud</item>
+    </string-array>
 </resources>

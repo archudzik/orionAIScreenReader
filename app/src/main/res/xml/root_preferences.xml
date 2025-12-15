@@ -6,7 +6,6 @@
             app:key="pref_gemini_api_key"
             app:title="@string/pref_gemini_api_key"
             app:useSimpleSummaryProvider="true" />
-
     </PreferenceCategory>
 
     <PreferenceCategory app:title="@string/pref_head_orion">
@@ -26,10 +25,24 @@
             app:title="@string/pref_orion_tts_speed"
             app:useSimpleSummaryProvider="true" />
 
-        <SwitchPreferenceCompat
-            app:defaultValue="false"
-            app:key="pref_orion_auto_confirm"
-            app:title="@string/pref_orion_auto_confirm" />
+        <ListPreference
+            app:key="pref_orion_reading_mode"
+            app:title="Reading mode"
+            app:defaultValue="prompt_read"
+            app:entries="@array/reading_mode_entries"
+            app:entryValues="@array/reading_mode_values"
+            app:useSimpleSummaryProvider="true" />
+
+        <Preference
+            app:key="pref_enable_orion"
+            app:title="@string/pref_enable_orion_title"
+            app:summary="@string/pref_enable_orion_summary" />
+
+        <Preference
+            app:key="pref_close_settings"
+            app:title="Close settings"
+            app:summary="Return to the previous screen" />
+
 
     </PreferenceCategory>
 

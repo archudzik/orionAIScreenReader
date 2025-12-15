@@ -4,15 +4,15 @@ plugins {
 }
 
 android {
-    namespace = "com.deltainteraction.orion"
+    namespace = "co.teina.orion"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.deltainteraction.orion"
+        applicationId = "co.teina.orion"
         minSdk = 33
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 130
+        versionName = "1.3"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary = true

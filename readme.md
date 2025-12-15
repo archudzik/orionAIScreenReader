@@ -43,7 +43,7 @@ Orion bridges the accessibility gap, helping visually impaired individuals inter
 ### Installation
 1. **Download**: Install the Orion APK on your Android device. **Find the latest release APKs here:** [https://github.com/archudzik/orionAIScreenReader/releases](https://github.com/archudzik/orionAIScreenReader/releases)
 2. **Accessibility Permissions**: Enable the accessibility service for Orion via Settings to allow screen reading.
-3. **API Token Setup**: Go to the [Google AI Studio](https://aistudio.google.com/app/apikey) to get your free API Token.
+3. **API Token Setup**: Go to the [Google AI Studio](https://aistudio.google.com/app/api-keys) to get your free API Token.
 
 ### Permissions Required
 The app needs the following permissions to work:

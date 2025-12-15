@@ -2,13 +2,16 @@
     <string name="app_name">Orion</string>
     <string name="accessibility_service_label">Orion Service</string>
     <string name="accessibility_service_description">Screen Reader</string>
-    <string name="title_activity_settings">Settings</string>
+    <string name="title_activity_settings">Orion Settings</string>
     <string name="title_activity_screen_capture">Screen Capture</string>
     <string name="action_bar_screen">Read Screen</string>
     <string name="pref_head_gemini">Gemini AI</string>
-    <string name="pref_gemini_api_key">API Key (aistudio.google.com/app/apikey)</string>
+    <string name="pref_gemini_api_key">API Key (aistudio.google.com/app/api-keys)</string>
     <string name="pref_head_orion">Orion Preferences</string>
     <string name="pref_orion_language">Language</string>
-    <string name="pref_orion_auto_confirm">Auto Confirm Recording</string>
     <string name="pref_orion_tts_speed">Reading Speed</string>
+    <string name="pref_enable_orion_title">Enable Orion</string>
+    <string name="pref_enable_orion_summary">Turn on Orion accessibility service</string>
+    <string name="pref_orion_enabled_title">Orion is enabled</string>
+    <string name="pref_orion_enabled_summary">Accessibility service is running</string>
 </resources>
