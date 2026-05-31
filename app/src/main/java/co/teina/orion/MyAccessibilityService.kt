@@ -42,6 +42,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -68,7 +69,7 @@ class MyAccessibilityService : AccessibilityService() {
     private var apiKey = BuildConfig.GEMINI_API_KEY
     private var generativeModel: GenerativeModel? = null
     private val generativeModelName = "gemini-2.5-flash"
-    private val geminiTtsModelName = "gemini-2.5-flash-preview-tts"
+    private val geminiTtsModelName = "gemini-3.1-flash-tts-preview"
     private var readingPromptKey = "prompt_read"
     private var voiceEngine = "android"
     private var geminiVoice = "Kore"
@@ -267,7 +268,7 @@ class MyAccessibilityService : AccessibilityService() {
             geminiSpeechJob = serviceScope.launch {
                 var audioFile: File? = null
                 try {
-                    audioFile = createGeminiAudioFile(generateGeminiSpeech(outputContent))
+                    audioFile = createGeminiAudioFile(generateGeminiSpeechWithRetry(outputContent))
                     withContext(Dispatchers.Main) {
                         playAudioFile(audioFile)
                     }
@@ -284,6 +285,24 @@ class MyAccessibilityService : AccessibilityService() {
             }
         } else {
             synthesizeAndroidSpeech(outputContent)
+        }
+    }
+
+    private suspend fun generateGeminiSpeechWithRetry(outputContent: String): ByteArray {
+        return try {
+            generateGeminiSpeech(outputContent)
+        } catch (e: GeminiTtsHttpException) {
+            if (!e.isRetryable) {
+                throw e
+            }
+
+            Log.w(TAG, "Gemini TTS failed with HTTP ${e.statusCode}; retrying once.")
+            delay(1_000)
+            generateGeminiSpeech(outputContent)
+        } catch (e: java.io.IOException) {
+            Log.w(TAG, "Gemini TTS network request failed; retrying once.", e)
+            delay(1_000)
+            generateGeminiSpeech(outputContent)
         }
     }
 
@@ -306,13 +325,16 @@ class MyAccessibilityService : AccessibilityService() {
     }
 
     private fun generateGeminiSpeech(outputContent: String): ByteArray {
+        val ttsPrompt =
+            "Read the following text naturally and clearly at a comfortable pace. " +
+                "Preserve the wording exactly:\n\n$outputContent"
         val requestBody = JSONObject()
             .put(
                 "contents",
                 JSONArray().put(
                     JSONObject().put(
                         "parts",
-                        JSONArray().put(JSONObject().put("text", outputContent))
+                        JSONArray().put(JSONObject().put("text", ttsPrompt))
                     )
                 )
             )
@@ -351,7 +373,7 @@ class MyAccessibilityService : AccessibilityService() {
                 connection.inputStream.bufferedReader().use { it.readText() }
             } else {
                 val errorBody = connection.errorStream?.bufferedReader()?.use { it.readText() }
-                throw IllegalStateException("Gemini TTS HTTP ${connection.responseCode}: $errorBody")
+                throw GeminiTtsHttpException(connection.responseCode, errorBody)
             }
 
             val encodedAudio = JSONObject(responseBody)
@@ -367,6 +389,13 @@ class MyAccessibilityService : AccessibilityService() {
         } finally {
             connection.disconnect()
         }
+    }
+
+    private class GeminiTtsHttpException(
+        val statusCode: Int,
+        errorBody: String?
+    ) : IllegalStateException("Gemini TTS HTTP $statusCode: $errorBody") {
+        val isRetryable = statusCode == 429 || statusCode in 500..599
     }
 
     private fun createGeminiAudioFile(pcmAudio: ByteArray): File {
@@ -518,7 +547,9 @@ class MyAccessibilityService : AccessibilityService() {
 
             Log.i(TAG, outputContent)
             vibrate(VibrationEffect.EFFECT_HEAVY_CLICK)
-            speakGeneratedText(outputContent)
+            withContext(Dispatchers.Main) {
+                speakGeneratedText(outputContent)
+            }
 
         } catch (e: Exception) {
             speakToUser(appStrings[appLanguage]?.get("something_went_wrong").toString(), true)
@@ -688,6 +719,21 @@ class MyAccessibilityService : AccessibilityService() {
             alpha = 0.9f  // Opacity level between 0.0 and 1.0
             text = appStrings[appLanguage]?.get("read_screen")
             textSize = 20f
+        }
+        listOf(
+            playPauseButton to floatArrayOf(0f, 0f, 75f, 75f, 0f, 0f, 0f, 0f),
+            repeatButton to floatArrayOf(0f, 0f, 0f, 0f, 75f, 75f, 0f, 0f)
+        ).forEach { (button, cornerRadii) ->
+            val playbackGradient = GradientDrawable(
+                GradientDrawable.Orientation.TL_BR,
+                intArrayOf(Color.parseColor("#7550e1"), Color.parseColor("#748ded"))
+            )
+            playbackGradient.cornerRadii = cornerRadii
+            button?.apply {
+                background = playbackGradient
+                alpha = 0.9f
+                setTextColor(Color.parseColor("#FFFFFF"))
+            }
         }
 
         actionBarScreenButton?.setOnClickListener {
