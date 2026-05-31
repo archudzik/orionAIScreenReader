@@ -5,6 +5,9 @@
     <string name="title_activity_settings">Orion Settings</string>
     <string name="title_activity_screen_capture">Screen Capture</string>
     <string name="action_bar_screen">Read Screen</string>
+    <string name="action_play_reading">Play\nReading</string>
+    <string name="action_pause_reading">Pause\nReading</string>
+    <string name="action_repeat_reading">Repeat\nReading</string>
     <string name="pref_head_gemini">Gemini AI</string>
     <string name="pref_gemini_api_key">API Key (aistudio.google.com/app/api-keys)</string>
     <string name="pref_head_orion">Orion Preferences</string>

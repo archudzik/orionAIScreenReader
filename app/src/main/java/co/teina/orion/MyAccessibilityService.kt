@@ -14,12 +14,11 @@ import android.graphics.Color
 import android.graphics.Path
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
-import android.media.AudioAttributes
-import android.media.AudioFormat
-import android.media.AudioTrack
+import android.media.MediaPlayer
 import android.os.VibrationEffect
 import android.os.VibratorManager
 import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
 import android.speech.tts.Voice
 import android.util.Base64
 import android.util.Log
@@ -48,8 +47,11 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.util.Arrays
 import java.util.Locale
 
@@ -58,7 +60,10 @@ class MyAccessibilityService : AccessibilityService() {
 
     private var TAG = "MyAccessibilityService"
     private var mLayout: FrameLayout? = null
+    private var playbackLayout: FrameLayout? = null
     private var actionBarScreenButton: Button? = null
+    private var playPauseButton: Button? = null
+    private var repeatButton: Button? = null
 
     private var apiKey = BuildConfig.GEMINI_API_KEY
     private var generativeModel: GenerativeModel? = null
@@ -70,7 +75,10 @@ class MyAccessibilityService : AccessibilityService() {
     private var hapticFeedbackEnabled = true
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var geminiSpeechJob: Job? = null
-    private var geminiAudioTrack: AudioTrack? = null
+    private var mediaPlayer: MediaPlayer? = null
+    private var lastReadingText: String? = null
+    private var lastAudioFile: File? = null
+    private var pendingAndroidSynthesisId: String? = null
     private val generativeModelConfig = generationConfig {
         temperature = 0.9f
     }
@@ -252,27 +260,49 @@ class MyAccessibilityService : AccessibilityService() {
     }
 
     private fun speakGeneratedText(outputContent: String) {
-        if (voiceEngine != "gemini") {
-            speakToUser(outputContent, true)
-            return
-        }
+        lastReadingText = outputContent
+        clearPreparedReading()
 
-        geminiSpeechJob?.cancel()
-        geminiSpeechJob = serviceScope.launch {
-            try {
-                val pcmAudio = generateGeminiSpeech(outputContent)
-                withContext(Dispatchers.Main) {
-                    playGeminiSpeech(pcmAudio)
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.e(TAG, "Gemini TTS failed, falling back to Android TTS.", e)
-                withContext(Dispatchers.Main) {
-                    speakToUser(outputContent, true)
+        if (voiceEngine == "gemini") {
+            geminiSpeechJob = serviceScope.launch {
+                var audioFile: File? = null
+                try {
+                    audioFile = createGeminiAudioFile(generateGeminiSpeech(outputContent))
+                    withContext(Dispatchers.Main) {
+                        playAudioFile(audioFile)
+                    }
+                } catch (e: CancellationException) {
+                    audioFile?.delete()
+                    throw e
+                } catch (e: Exception) {
+                    audioFile?.delete()
+                    Log.e(TAG, "Gemini TTS failed, falling back to Android TTS.", e)
+                    withContext(Dispatchers.Main) {
+                        synthesizeAndroidSpeech(outputContent)
+                    }
                 }
             }
+        } else {
+            synthesizeAndroidSpeech(outputContent)
         }
+    }
+
+    private fun synthesizeAndroidSpeech(outputContent: String) {
+        val utteranceId = "orion_reading_${System.currentTimeMillis()}"
+        val audioFile = File(cacheDir, "$utteranceId.wav")
+        pendingAndroidSynthesisId = utteranceId
+        val result = textToSpeech.synthesizeToFile(outputContent, null, audioFile, utteranceId)
+        if (result != TextToSpeech.SUCCESS) {
+            pendingAndroidSynthesisId = null
+            audioFile.delete()
+            fallbackToDirectAndroidSpeech(outputContent)
+        }
+    }
+
+    private fun fallbackToDirectAndroidSpeech(outputContent: String) {
+        Log.i(TAG, "Playing reading directly through Android TTS.")
+        showPlaybackControls()
+        speakToUser(outputContent, true)
     }
 
     private fun generateGeminiSpeech(outputContent: String): ByteArray {
@@ -339,60 +369,119 @@ class MyAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun playGeminiSpeech(pcmAudio: ByteArray) {
-        stopGeminiSpeech()
+    private fun createGeminiAudioFile(pcmAudio: ByteArray): File {
         require(pcmAudio.isNotEmpty()) { "Gemini TTS returned empty audio." }
 
-        val audioTrack = AudioTrack.Builder()
-            .setAudioAttributes(
-                AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                    .build()
-            )
-            .setAudioFormat(
-                AudioFormat.Builder()
-                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                    .setSampleRate(24_000)
-                    .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-                    .build()
-            )
-            .setBufferSizeInBytes(pcmAudio.size)
-            .setTransferMode(AudioTrack.MODE_STATIC)
-            .build()
-
-        audioTrack.setNotificationMarkerPosition(pcmAudio.size / 2)
-        audioTrack.setPlaybackPositionUpdateListener(
-            object : AudioTrack.OnPlaybackPositionUpdateListener {
-                override fun onMarkerReached(track: AudioTrack) {
-                    if (geminiAudioTrack === track) {
-                        stopGeminiSpeech()
-                    }
-                }
-
-                override fun onPeriodicNotification(track: AudioTrack) {}
-            }
-        )
-
-        val writtenBytes = audioTrack.write(pcmAudio, 0, pcmAudio.size)
-        if (writtenBytes != pcmAudio.size) {
-            audioTrack.release()
-            error("Could not buffer Gemini TTS audio.")
+        val audioFile = File(cacheDir, "orion_gemini_${System.currentTimeMillis()}.wav")
+        val header = ByteBuffer.allocate(44).order(ByteOrder.LITTLE_ENDIAN).apply {
+            put("RIFF".toByteArray())
+            putInt(36 + pcmAudio.size)
+            put("WAVE".toByteArray())
+            put("fmt ".toByteArray())
+            putInt(16)
+            putShort(1)
+            putShort(1)
+            putInt(24_000)
+            putInt(24_000 * 2)
+            putShort(2)
+            putShort(16)
+            put("data".toByteArray())
+            putInt(pcmAudio.size)
         }
-        geminiAudioTrack = audioTrack
-        audioTrack.play()
+
+        FileOutputStream(audioFile).use {
+            it.write(header.array())
+            it.write(pcmAudio)
+        }
+        return audioFile
     }
 
-    private fun isGeminiSpeechPlaying(): Boolean {
-        return geminiAudioTrack?.playState == AudioTrack.PLAYSTATE_PLAYING
+    private fun playAudioFile(audioFile: File) {
+        try {
+            stopPlayback()
+            lastAudioFile?.takeIf { it != audioFile }?.delete()
+            lastAudioFile = audioFile
+
+            mediaPlayer = MediaPlayer().apply {
+                setDataSource(audioFile.absolutePath)
+                setOnCompletionListener {
+                    it.seekTo(0)
+                    updatePlayPauseButton(false)
+                }
+                setOnErrorListener { _, _, _ ->
+                    stopPlayback()
+                    fallbackToDirectAndroidSpeech(lastReadingText ?: return@setOnErrorListener true)
+                    true
+                }
+                prepare()
+                start()
+            }
+            showPlaybackControls()
+            updatePlayPauseButton(true)
+        } catch (e: Exception) {
+            Log.e(TAG, "Cached audio playback failed, falling back to Android TTS.", e)
+            stopPlayback()
+            audioFile.delete()
+            fallbackToDirectAndroidSpeech(lastReadingText ?: return)
+        }
     }
 
-    private fun stopGeminiSpeech() {
-        geminiAudioTrack?.run {
-            stop()
+    private fun togglePlayback() {
+        val player = mediaPlayer
+        if (player == null) {
+            lastReadingText?.let { speakGeneratedText(it) }
+        } else if (player.isPlaying) {
+            player.pause()
+            updatePlayPauseButton(false)
+        } else {
+            player.start()
+            updatePlayPauseButton(true)
+        }
+    }
+
+    private fun repeatLastReading() {
+        val player = mediaPlayer
+        if (player == null) {
+            lastReadingText?.let { speakGeneratedText(it) }
+        } else {
+            player.seekTo(0)
+            player.start()
+            updatePlayPauseButton(true)
+        }
+    }
+
+    private fun stopPlayback() {
+        mediaPlayer?.run {
+            if (isPlaying) {
+                stop()
+            }
             release()
         }
-        geminiAudioTrack = null
+        mediaPlayer = null
+        updatePlayPauseButton(false)
+    }
+
+    private fun clearPreparedReading() {
+        geminiSpeechJob?.cancel()
+        geminiSpeechJob = null
+        pendingAndroidSynthesisId = null
+        stopPlayback()
+        lastAudioFile?.delete()
+        lastAudioFile = null
+        cacheDir.listFiles()
+            ?.filter { it.name.startsWith("orion_reading_") || it.name.startsWith("orion_gemini_") }
+            ?.forEach { it.delete() }
+        playbackLayout?.visibility = View.GONE
+    }
+
+    private fun showPlaybackControls() {
+        playbackLayout?.visibility = View.VISIBLE
+    }
+
+    private fun updatePlayPauseButton(isPlaying: Boolean) {
+        playPauseButton?.text = getString(
+            if (isPlaying) R.string.action_pause_reading else R.string.action_play_reading
+        )
     }
 
     suspend fun chatWithGemini(imagePath: String) {
@@ -469,6 +558,9 @@ class MyAccessibilityService : AccessibilityService() {
         // Set up the overlay UI
         val wm = getSystemService(WINDOW_SERVICE) as WindowManager
         mLayout = FrameLayout(this)
+        playbackLayout = FrameLayout(this).apply {
+            visibility = View.GONE
+        }
 
         // Set up WindowManager layout parameters
         val lp = WindowManager.LayoutParams().apply {
@@ -479,13 +571,23 @@ class MyAccessibilityService : AccessibilityService() {
             height = WindowManager.LayoutParams.WRAP_CONTENT
             gravity = Gravity.END // Align the buttons
         }
+        val playbackLp = WindowManager.LayoutParams().apply {
+            type = WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY
+            format = PixelFormat.TRANSLUCENT
+            flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+            width = WindowManager.LayoutParams.WRAP_CONTENT
+            height = WindowManager.LayoutParams.WRAP_CONTENT
+            gravity = Gravity.START
+        }
 
         // Inflate your layout
         val inflater = LayoutInflater.from(this)
         inflater.inflate(R.layout.action_bar, mLayout)
+        inflater.inflate(R.layout.playback_controls, playbackLayout)
 
         // Add the inflated layout to the WindowManager
         wm.addView(mLayout, lp)
+        wm.addView(playbackLayout, playbackLp)
 
         // Register the BroadcastReceiver to receive the result of screen capture permission
         registerReceiver(
@@ -532,9 +634,46 @@ class MyAccessibilityService : AccessibilityService() {
                 Log.d(TAG, "TextToSpeech Initialization Failed")
             }
         }
+        textToSpeech.setOnUtteranceProgressListener(
+            object : UtteranceProgressListener() {
+                override fun onStart(utteranceId: String?) {}
+
+                override fun onDone(utteranceId: String?) {
+                    if (utteranceId != pendingAndroidSynthesisId) {
+                        File(cacheDir, "$utteranceId.wav").delete()
+                        return
+                    }
+
+                    val audioFile = File(cacheDir, "$utteranceId.wav")
+                    pendingAndroidSynthesisId = null
+                    serviceScope.launch(Dispatchers.Main) {
+                        if (audioFile.exists()) {
+                            playAudioFile(audioFile)
+                        } else {
+                            fallbackToDirectAndroidSpeech(lastReadingText ?: return@launch)
+                        }
+                    }
+                }
+
+                override fun onError(utteranceId: String?) {
+                    if (utteranceId != pendingAndroidSynthesisId) {
+                        File(cacheDir, "$utteranceId.wav").delete()
+                        return
+                    }
+
+                    pendingAndroidSynthesisId = null
+                    File(cacheDir, "$utteranceId.wav").delete()
+                    serviceScope.launch(Dispatchers.Main) {
+                        fallbackToDirectAndroidSpeech(lastReadingText ?: return@launch)
+                    }
+                }
+            }
+        )
 
         // Bind onClickListener to the button (once layout is inflated)
         actionBarScreenButton = mLayout?.findViewById(R.id.action_bar_button_screen)
+        playPauseButton = playbackLayout?.findViewById(R.id.playback_button_play_pause)
+        repeatButton = playbackLayout?.findViewById(R.id.playback_button_repeat)
 
         // Create gradient drawable programmatically
         val gradient = GradientDrawable(
@@ -552,16 +691,27 @@ class MyAccessibilityService : AccessibilityService() {
         }
 
         actionBarScreenButton?.setOnClickListener {
-            if (textToSpeech.isSpeaking || geminiSpeechJob?.isActive == true || isGeminiSpeechPlaying()) {
+            if (textToSpeech.isSpeaking || geminiSpeechJob?.isActive == true ||
+                pendingAndroidSynthesisId != null || mediaPlayer?.isPlaying == true
+            ) {
                 textToSpeech.stop()
                 geminiSpeechJob?.cancel()
-                stopGeminiSpeech()
+                pendingAndroidSynthesisId = null
+                stopPlayback()
                 vibrate(VibrationEffect.EFFECT_DOUBLE_CLICK)
             } else {
                 actionBarScreenButton?.visibility = View.GONE
                 vibrate(VibrationEffect.EFFECT_HEAVY_CLICK)
                 requestScreenCapture() // Re-trigger screen capture permission if needed
             }
+        }
+        playPauseButton?.setOnClickListener {
+            togglePlayback()
+            vibrate(VibrationEffect.EFFECT_TICK)
+        }
+        repeatButton?.setOnClickListener {
+            repeatLastReading()
+            vibrate(VibrationEffect.EFFECT_HEAVY_CLICK)
         }
 
         vibrate(VibrationEffect.EFFECT_DOUBLE_CLICK)
@@ -632,7 +782,14 @@ class MyAccessibilityService : AccessibilityService() {
             textToSpeech.shutdown()
         }
         geminiSpeechJob?.cancel()
-        stopGeminiSpeech()
+        stopPlayback()
+        lastAudioFile?.delete()
+        val wm = getSystemService(WINDOW_SERVICE) as WindowManager
+        mLayout?.let { runCatching { wm.removeView(it) } }
+        playbackLayout?.let { runCatching { wm.removeView(it) } }
+        cacheDir.listFiles()
+            ?.filter { it.name.startsWith("orion_reading_") || it.name.startsWith("orion_gemini_") }
+            ?.forEach { it.delete() }
         serviceScope.cancel()
 
     }
