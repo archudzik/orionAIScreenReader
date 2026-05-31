@@ -14,10 +14,14 @@ import android.graphics.Color
 import android.graphics.Path
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
+import android.media.AudioAttributes
+import android.media.AudioFormat
+import android.media.AudioTrack
 import android.os.VibrationEffect
 import android.os.VibratorManager
 import android.speech.tts.TextToSpeech
 import android.speech.tts.Voice
+import android.util.Base64
 import android.util.Log
 import android.view.Gravity
 import android.view.LayoutInflater
@@ -33,9 +37,19 @@ import com.google.ai.client.generativeai.type.HarmCategory
 import com.google.ai.client.generativeai.type.SafetySetting
 import com.google.ai.client.generativeai.type.content
 import com.google.ai.client.generativeai.type.generationConfig
-import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONObject
 import java.io.File
+import java.net.HttpURLConnection
+import java.net.URL
 import java.util.Arrays
 import java.util.Locale
 
@@ -49,7 +63,14 @@ class MyAccessibilityService : AccessibilityService() {
     private var apiKey = BuildConfig.GEMINI_API_KEY
     private var generativeModel: GenerativeModel? = null
     private val generativeModelName = "gemini-2.5-flash"
+    private val geminiTtsModelName = "gemini-2.5-flash-preview-tts"
     private var readingPromptKey = "prompt_read"
+    private var voiceEngine = "android"
+    private var geminiVoice = "Kore"
+    private var hapticFeedbackEnabled = true
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var geminiSpeechJob: Job? = null
+    private var geminiAudioTrack: AudioTrack? = null
     private val generativeModelConfig = generationConfig {
         temperature = 0.9f
     }
@@ -187,7 +208,7 @@ class MyAccessibilityService : AccessibilityService() {
                 Log.i(TAG, "ACTION_FRESH_SCREENSHOT")
                 actionBarScreenButton?.visibility = View.VISIBLE
                 if (path != null) {
-                    GlobalScope.launch {
+                    serviceScope.launch {
                         chatWithGemini(path)
                     }
                 }
@@ -230,6 +251,150 @@ class MyAccessibilityService : AccessibilityService() {
         }
     }
 
+    private fun speakGeneratedText(outputContent: String) {
+        if (voiceEngine != "gemini") {
+            speakToUser(outputContent, true)
+            return
+        }
+
+        geminiSpeechJob?.cancel()
+        geminiSpeechJob = serviceScope.launch {
+            try {
+                val pcmAudio = generateGeminiSpeech(outputContent)
+                withContext(Dispatchers.Main) {
+                    playGeminiSpeech(pcmAudio)
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "Gemini TTS failed, falling back to Android TTS.", e)
+                withContext(Dispatchers.Main) {
+                    speakToUser(outputContent, true)
+                }
+            }
+        }
+    }
+
+    private fun generateGeminiSpeech(outputContent: String): ByteArray {
+        val requestBody = JSONObject()
+            .put(
+                "contents",
+                JSONArray().put(
+                    JSONObject().put(
+                        "parts",
+                        JSONArray().put(JSONObject().put("text", outputContent))
+                    )
+                )
+            )
+            .put(
+                "generationConfig",
+                JSONObject()
+                    .put("responseModalities", JSONArray().put("AUDIO"))
+                    .put(
+                        "speechConfig",
+                        JSONObject().put(
+                            "voiceConfig",
+                            JSONObject().put(
+                                "prebuiltVoiceConfig",
+                                JSONObject().put("voiceName", geminiVoice)
+                            )
+                        )
+                    )
+            )
+
+        val connection = URL(
+            "https://generativelanguage.googleapis.com/v1beta/models/$geminiTtsModelName:generateContent"
+        ).openConnection() as HttpURLConnection
+
+        try {
+            connection.requestMethod = "POST"
+            connection.connectTimeout = 15_000
+            connection.readTimeout = 60_000
+            connection.doOutput = true
+            connection.setRequestProperty("Content-Type", "application/json")
+            connection.setRequestProperty("x-goog-api-key", apiKey ?: "")
+            connection.outputStream.use {
+                it.write(requestBody.toString().toByteArray(Charsets.UTF_8))
+            }
+
+            val responseBody = if (connection.responseCode in 200..299) {
+                connection.inputStream.bufferedReader().use { it.readText() }
+            } else {
+                val errorBody = connection.errorStream?.bufferedReader()?.use { it.readText() }
+                throw IllegalStateException("Gemini TTS HTTP ${connection.responseCode}: $errorBody")
+            }
+
+            val encodedAudio = JSONObject(responseBody)
+                .getJSONArray("candidates")
+                .getJSONObject(0)
+                .getJSONObject("content")
+                .getJSONArray("parts")
+                .getJSONObject(0)
+                .getJSONObject("inlineData")
+                .getString("data")
+
+            return Base64.decode(encodedAudio, Base64.DEFAULT)
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    private fun playGeminiSpeech(pcmAudio: ByteArray) {
+        stopGeminiSpeech()
+        require(pcmAudio.isNotEmpty()) { "Gemini TTS returned empty audio." }
+
+        val audioTrack = AudioTrack.Builder()
+            .setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .build()
+            )
+            .setAudioFormat(
+                AudioFormat.Builder()
+                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                    .setSampleRate(24_000)
+                    .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                    .build()
+            )
+            .setBufferSizeInBytes(pcmAudio.size)
+            .setTransferMode(AudioTrack.MODE_STATIC)
+            .build()
+
+        audioTrack.setNotificationMarkerPosition(pcmAudio.size / 2)
+        audioTrack.setPlaybackPositionUpdateListener(
+            object : AudioTrack.OnPlaybackPositionUpdateListener {
+                override fun onMarkerReached(track: AudioTrack) {
+                    if (geminiAudioTrack === track) {
+                        stopGeminiSpeech()
+                    }
+                }
+
+                override fun onPeriodicNotification(track: AudioTrack) {}
+            }
+        )
+
+        val writtenBytes = audioTrack.write(pcmAudio, 0, pcmAudio.size)
+        if (writtenBytes != pcmAudio.size) {
+            audioTrack.release()
+            error("Could not buffer Gemini TTS audio.")
+        }
+        geminiAudioTrack = audioTrack
+        audioTrack.play()
+    }
+
+    private fun isGeminiSpeechPlaying(): Boolean {
+        return geminiAudioTrack?.playState == AudioTrack.PLAYSTATE_PLAYING
+    }
+
+    private fun stopGeminiSpeech() {
+        geminiAudioTrack?.run {
+            stop()
+            release()
+        }
+        geminiAudioTrack = null
+    }
+
     suspend fun chatWithGemini(imagePath: String) {
         try {
             appStrings[appLanguage]?.get("processing")?.let { speakToUser(it, true) }
@@ -264,7 +429,7 @@ class MyAccessibilityService : AccessibilityService() {
 
             Log.i(TAG, outputContent)
             vibrate(VibrationEffect.EFFECT_HEAVY_CLICK)
-            speakToUser(outputContent, true)
+            speakGeneratedText(outputContent)
 
         } catch (e: Exception) {
             speakToUser(appStrings[appLanguage]?.get("something_went_wrong").toString(), true)
@@ -283,6 +448,9 @@ class MyAccessibilityService : AccessibilityService() {
         val newAutoConfirm = preferences.getBoolean("pref_orion_auto_confirm", false)
         val newTtsSpeed = preferences.getString("pref_orion_tts_speed", "1.0")!!.toFloat()
         val newReadingPromptKey = preferences.getString("pref_orion_reading_mode", "prompt_read").toString()
+        voiceEngine = preferences.getString("pref_orion_voice_engine", "android").toString()
+        geminiVoice = preferences.getString("pref_orion_gemini_voice", "Kore").toString()
+        hapticFeedbackEnabled = preferences.getBoolean("pref_orion_haptic_feedback", true)
 
         if (newLang.isNotEmpty()) {
             appLanguage = newLang
@@ -384,8 +552,10 @@ class MyAccessibilityService : AccessibilityService() {
         }
 
         actionBarScreenButton?.setOnClickListener {
-            if (textToSpeech.isSpeaking) {
+            if (textToSpeech.isSpeaking || geminiSpeechJob?.isActive == true || isGeminiSpeechPlaying()) {
                 textToSpeech.stop()
+                geminiSpeechJob?.cancel()
+                stopGeminiSpeech()
                 vibrate(VibrationEffect.EFFECT_DOUBLE_CLICK)
             } else {
                 actionBarScreenButton?.visibility = View.GONE
@@ -398,7 +568,9 @@ class MyAccessibilityService : AccessibilityService() {
     }
 
     private fun vibrate(effectId: Int) {
-        vibratorManager.defaultVibrator.vibrate(VibrationEffect.createPredefined(effectId))
+        if (hapticFeedbackEnabled) {
+            vibratorManager.defaultVibrator.vibrate(VibrationEffect.createPredefined(effectId))
+        }
     }
 
     // Request screen capture permission
@@ -459,6 +631,9 @@ class MyAccessibilityService : AccessibilityService() {
         if (textToSpeech != null) {
             textToSpeech.shutdown()
         }
+        geminiSpeechJob?.cancel()
+        stopGeminiSpeech()
+        serviceScope.cancel()
 
     }
 

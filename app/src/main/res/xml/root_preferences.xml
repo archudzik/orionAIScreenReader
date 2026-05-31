@@ -26,12 +26,38 @@
             app:useSimpleSummaryProvider="true" />
 
         <ListPreference
+            app:defaultValue="android"
+            app:entries="@array/voice_engine_entries"
+            app:entryValues="@array/voice_engine_values"
+            app:key="pref_orion_voice_engine"
+            app:title="@string/pref_orion_voice_engine"
+            app:useSimpleSummaryProvider="true" />
+
+        <ListPreference
+            app:defaultValue="Kore"
+            app:entries="@array/gemini_voice_entries"
+            app:entryValues="@array/gemini_voice_values"
+            app:key="pref_orion_gemini_voice"
+            app:title="@string/pref_orion_gemini_voice"
+            app:useSimpleSummaryProvider="true" />
+
+        <Preference
+            app:key="pref_orion_gemini_voice_info"
+            app:summary="@string/pref_orion_gemini_voice_info" />
+
+        <ListPreference
             app:key="pref_orion_reading_mode"
             app:title="Reading mode"
             app:defaultValue="prompt_read"
             app:entries="@array/reading_mode_entries"
             app:entryValues="@array/reading_mode_values"
             app:useSimpleSummaryProvider="true" />
+
+        <SwitchPreferenceCompat
+            app:defaultValue="true"
+            app:key="pref_orion_haptic_feedback"
+            app:summary="@string/pref_orion_haptic_feedback_summary"
+            app:title="@string/pref_orion_haptic_feedback" />
 
         <Preference
             app:key="pref_enable_orion"

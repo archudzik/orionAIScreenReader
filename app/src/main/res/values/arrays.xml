@@ -47,6 +47,82 @@
         <item>2.0</item>
     </string-array>
 
+    <string-array name="voice_engine_entries">
+        <item>Android TTS</item>
+        <item>Gemini TTS (online)</item>
+    </string-array>
+
+    <string-array name="voice_engine_values">
+        <item>android</item>
+        <item>gemini</item>
+    </string-array>
+
+    <string-array name="gemini_voice_entries">
+        <item>Zephyr - Bright</item>
+        <item>Puck - Upbeat</item>
+        <item>Charon - Informative</item>
+        <item>Kore - Firm</item>
+        <item>Fenrir - Excitable</item>
+        <item>Leda - Youthful</item>
+        <item>Orus - Firm</item>
+        <item>Aoede - Breezy</item>
+        <item>Callirrhoe - Easy-going</item>
+        <item>Autonoe - Bright</item>
+        <item>Enceladus - Breathy</item>
+        <item>Iapetus - Clear</item>
+        <item>Umbriel - Easy-going</item>
+        <item>Algieba - Smooth</item>
+        <item>Despina - Smooth</item>
+        <item>Erinome - Clear</item>
+        <item>Algenib - Gravelly</item>
+        <item>Rasalgethi - Informative</item>
+        <item>Laomedeia - Upbeat</item>
+        <item>Achernar - Soft</item>
+        <item>Alnilam - Firm</item>
+        <item>Schedar - Even</item>
+        <item>Gacrux - Mature</item>
+        <item>Pulcherrima - Forward</item>
+        <item>Achird - Friendly</item>
+        <item>Zubenelgenubi - Casual</item>
+        <item>Vindemiatrix - Gentle</item>
+        <item>Sadachbia - Lively</item>
+        <item>Sadaltager - Knowledgeable</item>
+        <item>Sulafat - Warm</item>
+    </string-array>
+
+    <string-array name="gemini_voice_values">
+        <item>Zephyr</item>
+        <item>Puck</item>
+        <item>Charon</item>
+        <item>Kore</item>
+        <item>Fenrir</item>
+        <item>Leda</item>
+        <item>Orus</item>
+        <item>Aoede</item>
+        <item>Callirrhoe</item>
+        <item>Autonoe</item>
+        <item>Enceladus</item>
+        <item>Iapetus</item>
+        <item>Umbriel</item>
+        <item>Algieba</item>
+        <item>Despina</item>
+        <item>Erinome</item>
+        <item>Algenib</item>
+        <item>Rasalgethi</item>
+        <item>Laomedeia</item>
+        <item>Achernar</item>
+        <item>Alnilam</item>
+        <item>Schedar</item>
+        <item>Gacrux</item>
+        <item>Pulcherrima</item>
+        <item>Achird</item>
+        <item>Zubenelgenubi</item>
+        <item>Vindemiatrix</item>
+        <item>Sadachbia</item>
+        <item>Sadaltager</item>
+        <item>Sulafat</item>
+    </string-array>
+
     <string-array name="reading_mode_entries">
         <item>Describe screen</item>
         <item>Read text aloud</item>

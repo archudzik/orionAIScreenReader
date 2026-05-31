@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.provider.Settings
 import androidx.appcompat.app.AppCompatActivity
+import androidx.preference.ListPreference
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 
@@ -48,6 +49,22 @@ class SettingsActivity : AppCompatActivity() {
                     requireActivity().finish()
                     true
                 }
+
+            val voiceEngine = findPreference<ListPreference>("pref_orion_voice_engine")
+            val geminiVoice = findPreference<ListPreference>("pref_orion_gemini_voice")
+            val geminiVoiceInfo = findPreference<Preference>("pref_orion_gemini_voice_info")
+
+            fun updateGeminiVoicePreferences(engine: String?) {
+                val isGeminiSelected = engine == "gemini"
+                geminiVoice?.isEnabled = isGeminiSelected
+                geminiVoiceInfo?.isVisible = isGeminiSelected
+            }
+
+            updateGeminiVoicePreferences(voiceEngine?.value)
+            voiceEngine?.setOnPreferenceChangeListener { _, newValue ->
+                updateGeminiVoicePreferences(newValue as? String)
+                true
+            }
         }
 
         override fun onResume() {
