@@ -1,4 +1,4 @@
-package co.teina.orion
+package com.deltainteraction.orion
 
 import android.content.Intent
 import android.os.Bundle

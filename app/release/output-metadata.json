@@ -4,15 +4,15 @@
     "type": "APK",
     "kind": "Directory"
   },
-  "applicationId": "co.teina.orion",
+  "applicationId": "com.deltainteraction.orion",
   "variantName": "release",
   "elements": [
     {
       "type": "SINGLE",
       "filters": [],
       "attributes": [],
-      "versionCode": 140,
-      "versionName": "1.4",
+      "versionCode": 150,
+      "versionName": "1.5",
       "outputFile": "app-release.apk"
     }
   ],

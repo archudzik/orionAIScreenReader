@@ -1,4 +1,4 @@
-package co.teina.orion
+package com.deltainteraction.orion
 
 import android.app.Activity
 import android.app.Notification
@@ -212,7 +212,7 @@ class ScreenCaptureForegroundService : Service() {
             val createdFile = saveBitmapToFile(bitmap, "orion_${UUID.randomUUID()}.jpg")
 
             // Propagate
-            val resultIntent = Intent("co.teina.ACTION_FRESH_SCREENSHOT")
+            val resultIntent = Intent("com.deltainteraction.ACTION_FRESH_SCREENSHOT")
             resultIntent.putExtra("resultCode", Activity.RESULT_OK)
             resultIntent.putExtra("path", createdFile!!.absolutePath)
             sendBroadcast(resultIntent) // Send the broadcast

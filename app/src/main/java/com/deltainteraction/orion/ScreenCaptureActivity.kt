@@ -1,4 +1,4 @@
-package co.teina.orion
+package com.deltainteraction.orion
 
 import android.app.Activity
 import android.content.Context
@@ -26,7 +26,7 @@ class ScreenCaptureActivity : Activity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         if (requestCode == REQUEST_MEDIA_PROJECTION && resultCode == Activity.RESULT_OK && data != null) {
             // Broadcast the result back to the service
-            val resultIntent = Intent("co.teina.ACTION_SCREEN_CAPTURE")
+            val resultIntent = Intent("com.deltainteraction.ACTION_SCREEN_CAPTURE")
             resultIntent.putExtra("resultCode", resultCode)
             resultIntent.putExtra("data", data)
             sendBroadcast(resultIntent) // Send the broadcast

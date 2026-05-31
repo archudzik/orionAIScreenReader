@@ -1,4 +1,4 @@
-package co.teina.orion
+package com.deltainteraction.orion
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
@@ -213,7 +213,7 @@ class MyAccessibilityService : AccessibilityService() {
             val path = intent?.getParcelableExtra("path", String::class.java)
             val actionResultIsOK = resultCode == Activity.RESULT_OK && data != null
 
-            if (actionIdent == "co.teina.ACTION_FRESH_SCREENSHOT") {
+            if (actionIdent == "com.deltainteraction.ACTION_FRESH_SCREENSHOT") {
                 Log.i(TAG, "ACTION_FRESH_SCREENSHOT")
                 actionBarScreenButton?.visibility = View.VISIBLE
                 if (path != null) {
@@ -223,7 +223,7 @@ class MyAccessibilityService : AccessibilityService() {
                 }
             }
 
-            if (actionIdent == "co.teina.ACTION_SCREEN_CAPTURE") {
+            if (actionIdent == "com.deltainteraction.ACTION_SCREEN_CAPTURE") {
                 if (actionResultIsOK) {
                     val serviceIntent = Intent(
                         this@MyAccessibilityService,
@@ -623,12 +623,12 @@ class MyAccessibilityService : AccessibilityService() {
         // Register the BroadcastReceiver to receive the result of screen capture permission
         registerReceiver(
             genericBroadcastReceiver,
-            IntentFilter("co.teina.ACTION_SCREEN_CAPTURE"),
+            IntentFilter("com.deltainteraction.ACTION_SCREEN_CAPTURE"),
             RECEIVER_EXPORTED
         )
         registerReceiver(
             genericBroadcastReceiver,
-            IntentFilter("co.teina.ACTION_FRESH_SCREENSHOT"),
+            IntentFilter("com.deltainteraction.ACTION_FRESH_SCREENSHOT"),
             RECEIVER_EXPORTED
         )
 
