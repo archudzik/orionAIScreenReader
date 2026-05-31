@@ -10,6 +10,8 @@
     <string name="pref_head_orion">Orion Preferences</string>
     <string name="pref_orion_language">Language</string>
     <string name="pref_orion_tts_speed">Reading Speed</string>
+    <string name="pref_android_tts_settings">Android Text-to-Speech settings</string>
+    <string name="pref_android_tts_settings_summary">Choose and configure the system voice used by Android TTS</string>
     <string name="pref_orion_voice_engine">Voice engine</string>
     <string name="pref_orion_gemini_voice">Gemini TTS voice</string>
     <string name="pref_orion_gemini_voice_info">Gemini TTS requires internet access. The text being read is sent to Gemini to generate audio. It may use more data and may be slightly slower than Android TTS. If it fails, Orion falls back to Android TTS.</string>

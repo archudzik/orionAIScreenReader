@@ -50,6 +50,18 @@ class SettingsActivity : AppCompatActivity() {
                     true
                 }
 
+            findPreference<Preference>("pref_android_tts_settings")
+                ?.setOnPreferenceClickListener {
+                    val ttsSettingsIntent = Intent("com.android.settings.TTS_SETTINGS")
+                    val intent = if (ttsSettingsIntent.resolveActivity(requireContext().packageManager) != null) {
+                        ttsSettingsIntent
+                    } else {
+                        Intent(Settings.ACTION_SETTINGS)
+                    }
+                    startActivity(intent)
+                    true
+                }
+
             val voiceEngine = findPreference<ListPreference>("pref_orion_voice_engine")
             val geminiVoice = findPreference<ListPreference>("pref_orion_gemini_voice")
             val geminiVoiceInfo = findPreference<Preference>("pref_orion_gemini_voice_info")

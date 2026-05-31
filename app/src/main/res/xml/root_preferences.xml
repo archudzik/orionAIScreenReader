@@ -25,6 +25,11 @@
             app:title="@string/pref_orion_tts_speed"
             app:useSimpleSummaryProvider="true" />
 
+        <Preference
+            app:key="pref_android_tts_settings"
+            app:summary="@string/pref_android_tts_settings_summary"
+            app:title="@string/pref_android_tts_settings" />
+
         <ListPreference
             app:defaultValue="android"
             app:entries="@array/voice_engine_entries"
