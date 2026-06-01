@@ -13,6 +13,7 @@ Orion is a screen reader designed to make Android devices more accessible by usi
 - **Reading Modes**: Choose between a concise screen description and reading visible text aloud.
 - **Voice Engines**: Use Android Text-to-Speech by default or opt into a more natural online Gemini TTS voice.
 - **Custom Configuration**: Configure your language, reading speed, voice, haptic feedback, and private Gemini API key.
+- **Diagnostics**: View, share, or clear recent diagnostic entries from Orion settings when troubleshooting.
 
 
 ## Addressing Accessibility
@@ -22,9 +23,9 @@ Orion is designed to help people with visual impairments or blindness access the
 - **Screen Content Read-Aloud**: Orion reads out any text or relevant information on the screen, making it easy to understand content without seeing it.
 - **Simple Floating Button**: The **Read Screen** button is easy to locate and use. Users just tap the button to access the content, making navigation more straightforward.
 - **AI-Powered Context Extraction**: Orion, powered by [Gemini AI](https://gemini.google.com/), goes beyond reading text. It summarizes relevant information from the screen and skips unnecessary parts, helping users focus on what matters most.
-- **Tactile Feedback**: Optional vibrations provide feedback for actions and reading progress.
+- **Tactile Feedback**: Optional vibrations provide feedback for actions and reading progress, including a heartbeat while Orion is processing.
 - **Playback Controls**: Large floating **Play/Pause** and **Repeat** controls appear after a reading is ready.
-- **Customizable Settings**: Adjust the language, reading mode, speed, voice engine, Gemini voice, and haptic feedback.
+- **Customizable Settings**: Open Orion from the app drawer to adjust the language, reading mode, speed, voice engine, Gemini voice, and haptic feedback.
 
 The main goal of this project is to support users who have difficulty accessing content on apps or websites that overlay content with popups or other interactive elements.
 
@@ -34,7 +35,7 @@ Orion bridges the accessibility gap, helping visually impaired individuals inter
 1. **Accessibility Service**: After installing the app, Orion works as an accessibility service to get the needed permissions.
 2. **Floating Button Activation**: The **Read Screen** button floats over your device screen.
 3. **Screen Capture**: When the user taps the button, Orion takes a snapshot of the current screen.
-4. **AI Processing**: The snapshot is sent to Gemini AI, which extracts meaningful information.
+4. **AI Processing**: The snapshot is sent to Gemini AI, which extracts meaningful information. The floating control shows **Thinking...** while Orion prepares the reading.
 5. **TTS Output**: The processed information is read aloud using Android TTS or the optional Gemini TTS voice engine.
 6. **Playback Controls**: Pause, resume, or repeat the generated reading from the floating controls.
 
@@ -69,7 +70,10 @@ Screenshots are stored temporarily in the app's private storage and deleted afte
 
 ### Voice Engines
 - **Android TTS** is the default. It is faster, uses less data, can work offline for playback, and uses your device's configured voice.
-- **Gemini TTS** is optional. It requires internet access, sends the generated reading text to Gemini to create audio, may use more data, and can take slightly longer. If Gemini TTS fails, Orion falls back to Android TTS.
+- **Gemini TTS** is optional. It requires internet access, sends the generated reading text to Gemini to create audio, may use more data, and can take slightly longer. The floating control shows **Synthesizing...** while audio is generated. If Gemini TTS fails, Orion falls back to Android TTS.
+
+### Troubleshooting
+Open Orion from the app drawer to access settings. If a reading does not complete, use **View recent diagnostics** or **Share diagnostics** to collect the latest entries. Gemini API keys are automatically redacted from shared diagnostics.
 
 ## Google API Key
 ![Orion in Action](OrionGIF2.gif)
