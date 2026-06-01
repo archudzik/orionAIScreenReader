@@ -25,6 +25,7 @@ class ScreenCaptureActivity : Activity() {
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         val resultIntent = Intent("com.deltainteraction.ACTION_SCREEN_CAPTURE")
+            .setPackage(packageName)
         resultIntent.putExtra("resultCode", resultCode)
         data?.let { resultIntent.putExtra("data", it) }
         sendBroadcast(resultIntent)

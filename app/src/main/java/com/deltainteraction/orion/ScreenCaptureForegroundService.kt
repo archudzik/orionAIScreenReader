@@ -6,7 +6,6 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
-import android.content.ContextWrapper
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.PixelFormat
@@ -16,16 +15,13 @@ import android.media.Image
 import android.media.ImageReader
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
-import android.os.Environment
 import android.os.IBinder
 import android.util.DisplayMetrics
 import android.util.Log
 import androidx.core.app.NotificationCompat
-import androidx.core.content.ContentProviderCompat.requireContext
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
-import java.io.OutputStream
 import java.nio.ByteBuffer
 import java.util.UUID
 
@@ -64,9 +60,11 @@ class ScreenCaptureForegroundService : Service() {
         } else {
             Log.d(TAG, "Invalid media projection result or data.")
             DiagnosticsLog.append(this, "Screen capture permission result was invalid.")
+            notifyScreenshotFailure()
+            stopSelf()
         }
 
-        return START_STICKY
+        return START_NOT_STICKY
     }
 
     private fun startMediaProjection(resultCode: Int, data: Intent) {
@@ -78,6 +76,7 @@ class ScreenCaptureForegroundService : Service() {
         } else {
             Log.e(TAG, "Failed to start MediaProjection")
             DiagnosticsLog.append(this, "Screen capture projection could not start.")
+            notifyScreenshotFailure()
             stopSelf() // Stop the service if MediaProjection fails
         }
     }
@@ -218,6 +217,7 @@ class ScreenCaptureForegroundService : Service() {
 
             // Propagate
             val resultIntent = Intent("com.deltainteraction.ACTION_FRESH_SCREENSHOT")
+                .setPackage(packageName)
             resultIntent.putExtra("resultCode", Activity.RESULT_OK)
             resultIntent.putExtra("path", createdFile.absolutePath)
             sendBroadcast(resultIntent) // Send the broadcast
@@ -228,9 +228,17 @@ class ScreenCaptureForegroundService : Service() {
         } catch (e: Exception) {
             Log.e(TAG, "Screenshot capture failed.", e)
             DiagnosticsLog.append(this, "Screenshot capture failed. ${DiagnosticsLog.describe(e)}")
+            notifyScreenshotFailure()
         } finally {
             image.close()
         }
+    }
+
+    private fun notifyScreenshotFailure() {
+        sendBroadcast(
+            Intent("com.deltainteraction.ACTION_FRESH_SCREENSHOT")
+                .setPackage(packageName)
+        )
     }
 
     private fun startForegroundService() {

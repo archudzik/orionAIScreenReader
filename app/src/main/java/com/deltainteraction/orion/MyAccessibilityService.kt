@@ -19,7 +19,6 @@ import android.os.VibrationEffect
 import android.os.VibratorManager
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
-import android.speech.tts.Voice
 import android.util.Base64
 import android.util.Log
 import android.view.Gravity
@@ -54,7 +53,6 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import java.util.Arrays
 import java.util.Locale
 
 
@@ -74,6 +72,7 @@ class MyAccessibilityService : AccessibilityService() {
     private var readingPromptKey = "prompt_read"
     private var voiceEngine = "android"
     private var geminiVoice = "Kore"
+    private var ttsSpeed = 1.0f
     private var hapticFeedbackEnabled = true
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var geminiSpeechJob: Job? = null
@@ -86,7 +85,7 @@ class MyAccessibilityService : AccessibilityService() {
     private val generativeModelConfig = generationConfig {
         temperature = 0.9f
     }
-    private val safetySettings: List<SafetySetting> = Arrays.asList(
+    private val safetySettings: List<SafetySetting> = listOf(
         SafetySetting(HarmCategory.DANGEROUS_CONTENT, BlockThreshold.NONE),
     )
 
@@ -255,7 +254,7 @@ class MyAccessibilityService : AccessibilityService() {
     }
 
     private fun speakToUser(outputContent: String, stopSpeakingFirst: Boolean) {
-        if (textToSpeech != null) {
+        if (::textToSpeech.isInitialized) {
             Log.i(TAG, "Speaking...")
             if (stopSpeakingFirst) {
                 if (textToSpeech.isSpeaking) {
@@ -394,7 +393,7 @@ class MyAccessibilityService : AccessibilityService() {
             connection.readTimeout = 60_000
             connection.doOutput = true
             connection.setRequestProperty("Content-Type", "application/json")
-            connection.setRequestProperty("x-goog-api-key", apiKey ?: "")
+            connection.setRequestProperty("x-goog-api-key", apiKey)
             connection.outputStream.use {
                 it.write(requestBody.toString().toByteArray(Charsets.UTF_8))
             }
@@ -591,17 +590,48 @@ class MyAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun refreshGeminiClient() {
+    private fun refreshPreferences() {
         val preferences = PreferenceManager.getDefaultSharedPreferences(this)
         val storedApiKey = preferences.getString("pref_gemini_api_key", "").orEmpty()
         apiKey = storedApiKey.ifEmpty { BuildConfig.GEMINI_API_KEY }
+        appLanguage = preferences.getString("pref_orion_language", "EN")
+            ?.takeIf { it.isNotEmpty() }
+            ?: "EN"
+        readingPromptKey = preferences.getString("pref_orion_reading_mode", "prompt_read")
+            ?.takeIf { it.isNotEmpty() }
+            ?: "prompt_read"
+        voiceEngine = preferences.getString("pref_orion_voice_engine", "android")
+            ?.takeIf { it.isNotEmpty() }
+            ?: "android"
+        geminiVoice = preferences.getString("pref_orion_gemini_voice", "Kore")
+            ?.takeIf { it.isNotEmpty() }
+            ?: "Kore"
+        ttsSpeed = preferences.getString("pref_orion_tts_speed", "1.0")
+            ?.toFloatOrNull()
+            ?: 1.0f
+        hapticFeedbackEnabled = preferences.getBoolean("pref_orion_haptic_feedback", true)
+        autoConfirmRecording = preferences.getBoolean("pref_orion_auto_confirm", false)
+
+        if (::textToSpeech.isInitialized) {
+            configureAndroidTts()
+        }
+
         generativeModel = GenerativeModel(
             modelName = generativeModelName,
             apiKey = apiKey,
             generationConfig = generativeModelConfig,
             safetySettings = safetySettings
         )
-        DiagnosticsLog.append(this, "Gemini client refreshed. hasApiKey=${apiKey.isNotBlank()}")
+        DiagnosticsLog.append(this, "Preferences refreshed. hasApiKey=${apiKey.isNotBlank()}")
+    }
+
+    private fun configureAndroidTts() {
+        textToSpeech.language = Locale.forLanguageTag(appLanguage)
+        val desiredVoice = appStrings[appLanguage]?.get("tts_voice").orEmpty()
+        textToSpeech.voices
+            ?.firstOrNull { it.locale.toString() == desiredVoice }
+            ?.let { textToSpeech.voice = it }
+        textToSpeech.setSpeechRate(ttsSpeed)
     }
 
     suspend fun chatWithGemini(imagePath: String) {
@@ -675,39 +705,17 @@ class MyAccessibilityService : AccessibilityService() {
         vibratorManager = getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
 
         // Set up language and settings
-        val preferences = PreferenceManager.getDefaultSharedPreferences(this)
-        val newLang = preferences.getString("pref_orion_language", "EN").toString()
-        val newApiKey = preferences.getString("pref_gemini_api_key", "").toString()
-        val newAutoConfirm = preferences.getBoolean("pref_orion_auto_confirm", false)
-        val newTtsSpeed = preferences.getString("pref_orion_tts_speed", "1.0")!!.toFloat()
-        val newReadingPromptKey = preferences.getString("pref_orion_reading_mode", "prompt_read").toString()
-        voiceEngine = preferences.getString("pref_orion_voice_engine", "android").toString()
-        geminiVoice = preferences.getString("pref_orion_gemini_voice", "Kore").toString()
-        hapticFeedbackEnabled = preferences.getBoolean("pref_orion_haptic_feedback", true)
+        refreshPreferences()
         DiagnosticsLog.append(
             this,
             DiagnosticsLog.sessionSummary(
                 this,
-                newLang,
-                newReadingPromptKey,
+                appLanguage,
+                readingPromptKey,
                 voiceEngine,
-                newApiKey.isNotEmpty() || !apiKey.isNullOrBlank()
+                apiKey.isNotBlank()
             )
         )
-
-        if (newLang.isNotEmpty()) {
-            appLanguage = newLang
-        }
-
-        if (newApiKey.isNotEmpty()) {
-            apiKey = newApiKey
-        }
-
-        if (newReadingPromptKey.isNotEmpty()) {
-            readingPromptKey = newReadingPromptKey
-        }
-
-        autoConfirmRecording = newAutoConfirm
 
         // Set up the overlay UI
         val wm = getSystemService(WINDOW_SERVICE) as WindowManager
@@ -747,37 +755,23 @@ class MyAccessibilityService : AccessibilityService() {
         registerReceiver(
             genericBroadcastReceiver,
             IntentFilter("com.deltainteraction.ACTION_SCREEN_CAPTURE"),
-            RECEIVER_EXPORTED
+            RECEIVER_NOT_EXPORTED
         )
         registerReceiver(
             genericBroadcastReceiver,
             IntentFilter("com.deltainteraction.ACTION_FRESH_SCREENSHOT"),
-            RECEIVER_EXPORTED
+            RECEIVER_NOT_EXPORTED
         )
-
-        // Create LLM Client
-        refreshGeminiClient()
 
         // Set-up TTS
         textToSpeech = TextToSpeech(this) { status ->
             if (status == TextToSpeech.SUCCESS) {
-                textToSpeech.language = Locale.forLanguageTag(appLanguage)
-
-                val desiredVoice = appStrings[appLanguage]?.get("tts_voice").toString()
-                val voices: Set<Voice> = textToSpeech.getVoices()
-                val voiceList: List<Voice> = ArrayList(voices)
-
-                for (voice in voiceList) {
-                    if (voice.locale.toString().equals(desiredVoice)) {
-                        textToSpeech.setVoice(voice)
-                    }
-                }
-
-                textToSpeech.setSpeechRate(newTtsSpeed)
+                configureAndroidTts()
+                val desiredVoice = appStrings[appLanguage]?.get("tts_voice").orEmpty()
 
                 Log.i(
                     TAG,
-                    "TextToSpeech Initialization Success: ${appLanguage}, ${desiredVoice}, ${newTtsSpeed}"
+                    "TextToSpeech Initialization Success: ${appLanguage}, ${desiredVoice}, ${ttsSpeed}"
                 )
                 DiagnosticsLog.append(this, "Android TTS initialized successfully.")
             } else {
@@ -879,6 +873,7 @@ class MyAccessibilityService : AccessibilityService() {
                 stopPlayback()
                 vibrate(VibrationEffect.EFFECT_DOUBLE_CLICK)
             } else {
+                refreshPreferences()
                 actionBarScreenButton?.visibility = View.GONE
                 hidePlaybackControls()
                 vibrate(VibrationEffect.EFFECT_HEAVY_CLICK)
@@ -906,7 +901,6 @@ class MyAccessibilityService : AccessibilityService() {
 
     // Request screen capture permission
     private fun requestScreenCapture() {
-        refreshGeminiClient()
         val captureIntent = Intent(this, ScreenCaptureActivity::class.java)
         captureIntent.addFlags(
             Intent.FLAG_ACTIVITY_NEW_TASK or
@@ -936,18 +930,16 @@ class MyAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        var source = event!!.source
-        if (event != null
-            && source != null
-            && event!!.eventType === AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
-        ) {
-            if (source.getPackageName().equals("com.android.systemui")) {
+        val source = event?.source ?: return
+        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            if (source.packageName == "com.android.systemui") {
 
                 val confirm =
-                    getRootInActiveWindow()
-                        .findAccessibilityNodeInfosByText("Orion?")
+                    rootInActiveWindow
+                        ?.findAccessibilityNodeInfosByText("Orion?")
+                        .orEmpty()
 
-                if (confirm.size !== 0 && autoConfirmRecording) {
+                if (confirm.isNotEmpty() && autoConfirmRecording) {
                     val x = (getScreenWidth() - 200).toFloat()
                     val y = (getScreenHeight() - 120).toFloat()
 
@@ -963,9 +955,9 @@ class MyAccessibilityService : AccessibilityService() {
 
     override fun onDestroy() {
         super.onDestroy()
-        unregisterReceiver(genericBroadcastReceiver) // Unregister the receiver when the service is destroyed
+        runCatching { unregisterReceiver(genericBroadcastReceiver) }
         Log.d(TAG, "MyAccessibilityService destroyed.")
-        if (textToSpeech != null) {
+        if (::textToSpeech.isInitialized) {
             textToSpeech.shutdown()
         }
         geminiSpeechJob?.cancel()

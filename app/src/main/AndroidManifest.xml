@@ -43,7 +43,7 @@
         <activity
             android:name=".ScreenCaptureActivity"
             android:excludeFromRecents="true"
-            android:exported="true"
+            android:exported="false"
             android:label="@string/title_activity_screen_capture"
             android:noHistory="true"
             android:taskAffinity=""
@@ -52,7 +52,7 @@
         <service
             android:name=".ScreenCaptureForegroundService"
             android:enabled="true"
-            android:exported="true"
+            android:exported="false"
             android:foregroundServiceType="mediaProjection"
             />
 
