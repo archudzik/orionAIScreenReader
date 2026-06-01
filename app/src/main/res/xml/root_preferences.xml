@@ -77,4 +77,21 @@
 
     </PreferenceCategory>
 
+    <PreferenceCategory app:title="@string/pref_head_diagnostics">
+        <Preference
+            app:key="pref_view_diagnostics"
+            app:summary="@string/pref_view_diagnostics_summary"
+            app:title="@string/pref_view_diagnostics" />
+
+        <Preference
+            app:key="pref_share_diagnostics"
+            app:summary="@string/pref_share_diagnostics_summary"
+            app:title="@string/pref_share_diagnostics" />
+
+        <Preference
+            app:key="pref_clear_diagnostics"
+            app:summary="@string/pref_clear_diagnostics_summary"
+            app:title="@string/pref_clear_diagnostics" />
+    </PreferenceCategory>
+
 </PreferenceScreen>

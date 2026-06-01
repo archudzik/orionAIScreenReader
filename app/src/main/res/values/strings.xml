@@ -8,6 +8,8 @@
     <string name="action_play_reading">Play\nReading</string>
     <string name="action_pause_reading">Pause\nReading</string>
     <string name="action_repeat_reading">Repeat\nReading</string>
+    <string name="action_thinking">Thinking...</string>
+    <string name="action_synthesizing">Synthesizing...</string>
     <string name="pref_head_gemini">Gemini AI</string>
     <string name="pref_gemini_api_key">API Key (aistudio.google.com/app/api-keys)</string>
     <string name="pref_head_orion">Orion Preferences</string>
@@ -24,4 +26,18 @@
     <string name="pref_enable_orion_summary">Turn on Orion accessibility service</string>
     <string name="pref_orion_enabled_title">Orion is enabled</string>
     <string name="pref_orion_enabled_summary">Accessibility service is running</string>
+    <string name="pref_head_diagnostics">Diagnostics</string>
+    <string name="pref_view_diagnostics">View recent diagnostics</string>
+    <string name="pref_view_diagnostics_summary">Show the latest 500 Orion diagnostic entries</string>
+    <string name="pref_share_diagnostics">Share diagnostics</string>
+    <string name="pref_share_diagnostics_summary">Send recent Orion diagnostics as text</string>
+    <string name="pref_clear_diagnostics">Clear diagnostics</string>
+    <string name="pref_clear_diagnostics_summary">Remove the saved diagnostic history</string>
+    <string name="diagnostics_empty">No diagnostics have been recorded yet.</string>
+    <string name="diagnostics_cleared">Diagnostics cleared</string>
+    <string name="diagnostics_share_subject">Orion diagnostics</string>
+    <string name="diagnostics_share_unavailable">No app is available to share diagnostics. You can still view the recent diagnostics from Orion settings.</string>
+    <string name="error_api_key_missing">Gemini API key is missing. Open Orion settings and add your API key.</string>
+    <string name="error_screen_analysis_empty">Gemini returned no screen description. Please try reading the screen again.</string>
+    <string name="error_screen_analysis_failed">Screen reading failed. Please check your internet connection and Gemini API key, then try again. You can share diagnostics from Orion settings.</string>
 </resources>

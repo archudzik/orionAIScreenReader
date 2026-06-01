@@ -38,6 +38,7 @@ class ScreenCaptureForegroundService : Service() {
     private var mMediaProjection: MediaProjection? = null
     private var mVirtualDisplay: VirtualDisplay? = null
     private var imageReader: ImageReader? = null
+    private var resourcesReleased = false
 
     private lateinit var mediaProjectionManager: MediaProjectionManager
     private lateinit var displayMetrics: DisplayMetrics
@@ -62,18 +63,21 @@ class ScreenCaptureForegroundService : Service() {
             startMediaProjection(resultCode, data)
         } else {
             Log.d(TAG, "Invalid media projection result or data.")
+            DiagnosticsLog.append(this, "Screen capture permission result was invalid.")
         }
 
         return START_STICKY
     }
 
     private fun startMediaProjection(resultCode: Int, data: Intent) {
+        resourcesReleased = false
         mMediaProjection = mediaProjectionManager.getMediaProjection(resultCode, data)
         if (mMediaProjection != null) {
             Log.d(TAG, "Virtual display fresh set up.")
             setUpVirtualDisplay() // Set up the virtual display for screen capture
         } else {
             Log.e(TAG, "Failed to start MediaProjection")
+            DiagnosticsLog.append(this, "Screen capture projection could not start.")
             stopSelf() // Stop the service if MediaProjection fails
         }
     }
@@ -210,19 +214,22 @@ class ScreenCaptureForegroundService : Service() {
 
             // Process the bitmap (e.g., save or analyze the image)
             val createdFile = saveBitmapToFile(bitmap, "orion_${UUID.randomUUID()}.jpg")
+                ?: throw IOException("Screenshot could not be saved.")
 
             // Propagate
             val resultIntent = Intent("com.deltainteraction.ACTION_FRESH_SCREENSHOT")
             resultIntent.putExtra("resultCode", Activity.RESULT_OK)
-            resultIntent.putExtra("path", createdFile!!.absolutePath)
+            resultIntent.putExtra("path", createdFile.absolutePath)
             sendBroadcast(resultIntent) // Send the broadcast
 
-            // Close
-            image.close()
             Log.i(TAG, "Screenshot captured successfully.")
+            DiagnosticsLog.append(this, "Screenshot captured successfully.")
 
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e(TAG, "Screenshot capture failed.", e)
+            DiagnosticsLog.append(this, "Screenshot capture failed. ${DiagnosticsLog.describe(e)}")
+        } finally {
+            image.close()
         }
     }
 
@@ -253,11 +260,19 @@ class ScreenCaptureForegroundService : Service() {
     }
 
     private fun releaseResources(stopSelf: Boolean) {
+        if (resourcesReleased) {
+            return
+        }
+        resourcesReleased = true
+
         // Clean up resources
         Log.i(TAG, "Releasing resources...")
         mVirtualDisplay?.release()
         imageReader?.close()
         mMediaProjection?.stop()
+        mVirtualDisplay = null
+        imageReader = null
+        mMediaProjection = null
 
         // Optionally stop the service if screen capture is no longer needed
         if (stopSelf) {

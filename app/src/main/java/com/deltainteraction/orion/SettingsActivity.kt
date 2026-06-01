@@ -1,8 +1,11 @@
 package com.deltainteraction.orion
 
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.os.Bundle
 import android.provider.Settings
+import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.preference.ListPreference
 import androidx.preference.Preference
@@ -62,6 +65,29 @@ class SettingsActivity : AppCompatActivity() {
                     true
                 }
 
+            findPreference<Preference>("pref_view_diagnostics")
+                ?.setOnPreferenceClickListener {
+                    showDiagnostics()
+                    true
+                }
+
+            findPreference<Preference>("pref_share_diagnostics")
+                ?.setOnPreferenceClickListener {
+                    shareDiagnostics()
+                    true
+                }
+
+            findPreference<Preference>("pref_clear_diagnostics")
+                ?.setOnPreferenceClickListener {
+                    DiagnosticsLog.clear(requireContext())
+                    Toast.makeText(
+                        requireContext(),
+                        R.string.diagnostics_cleared,
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    true
+                }
+
             val voiceEngine = findPreference<ListPreference>("pref_orion_voice_engine")
             val geminiVoice = findPreference<ListPreference>("pref_orion_gemini_voice")
             val geminiVoiceInfo = findPreference<Preference>("pref_orion_gemini_voice_info")
@@ -110,6 +136,36 @@ class SettingsActivity : AppCompatActivity() {
             return enabledServices
                 .split(':')
                 .any { it.equals(expectedService, ignoreCase = true) }
+        }
+
+        private fun showDiagnostics() {
+            val diagnostics = DiagnosticsLog.read(requireContext())
+                .ifBlank { getString(R.string.diagnostics_empty) }
+            AlertDialog.Builder(requireContext())
+                .setTitle(R.string.pref_view_diagnostics)
+                .setMessage(diagnostics)
+                .setPositiveButton(android.R.string.ok, null)
+                .show()
+        }
+
+        private fun shareDiagnostics() {
+            val context = requireContext()
+            DiagnosticsLog.append(context, "Diagnostics export requested.")
+            val diagnostics = DiagnosticsLog.read(context)
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_SUBJECT, getString(R.string.diagnostics_share_subject))
+                putExtra(Intent.EXTRA_TEXT, diagnostics)
+            }
+            try {
+                startActivity(Intent.createChooser(intent, getString(R.string.pref_share_diagnostics)))
+            } catch (_: ActivityNotFoundException) {
+                AlertDialog.Builder(context)
+                    .setTitle(R.string.pref_share_diagnostics)
+                    .setMessage(R.string.diagnostics_share_unavailable)
+                    .setPositiveButton(android.R.string.ok, null)
+                    .show()
+            }
         }
     }
 }

@@ -43,6 +43,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -76,7 +77,9 @@ class MyAccessibilityService : AccessibilityService() {
     private var hapticFeedbackEnabled = true
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var geminiSpeechJob: Job? = null
+    private var processingHeartbeatJob: Job? = null
     private var mediaPlayer: MediaPlayer? = null
+    private var directAndroidSpeechPlaying = false
     private var lastReadingText: String? = null
     private var lastAudioFile: File? = null
     private var pendingAndroidSynthesisId: String? = null
@@ -215,16 +218,21 @@ class MyAccessibilityService : AccessibilityService() {
 
             if (actionIdent == "com.deltainteraction.ACTION_FRESH_SCREENSHOT") {
                 Log.i(TAG, "ACTION_FRESH_SCREENSHOT")
-                actionBarScreenButton?.visibility = View.VISIBLE
                 if (path != null) {
+                    showThinkingButton()
+                    DiagnosticsLog.append(this@MyAccessibilityService, "Screenshot received for analysis.")
                     serviceScope.launch {
                         chatWithGemini(path)
                     }
+                } else {
+                    showReadScreenButton()
+                    DiagnosticsLog.append(this@MyAccessibilityService, "Screenshot broadcast did not include a file path.")
                 }
             }
 
             if (actionIdent == "com.deltainteraction.ACTION_SCREEN_CAPTURE") {
                 if (actionResultIsOK) {
+                    DiagnosticsLog.append(this@MyAccessibilityService, "Screen capture permission granted.")
                     val serviceIntent = Intent(
                         this@MyAccessibilityService,
                         ScreenCaptureForegroundService::class.java
@@ -239,6 +247,8 @@ class MyAccessibilityService : AccessibilityService() {
 
                 } else {
                     Log.e(TAG, "Screen capture permission was not granted.")
+                    showReadScreenButton()
+                    DiagnosticsLog.append(this@MyAccessibilityService, "Screen capture permission was not granted.")
                 }
             }
         }
@@ -260,11 +270,14 @@ class MyAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun speakGeneratedText(outputContent: String) {
+    private fun speakGeneratedText(outputContent: String): Boolean {
         lastReadingText = outputContent
         clearPreparedReading()
+        DiagnosticsLog.append(this, "Preparing reading audio. engine=$voiceEngine; characters=${outputContent.length}")
 
         if (voiceEngine == "gemini") {
+            showSynthesizingButton()
+            startProcessingHeartbeat()
             geminiSpeechJob = serviceScope.launch {
                 var audioFile: File? = null
                 try {
@@ -277,14 +290,25 @@ class MyAccessibilityService : AccessibilityService() {
                     throw e
                 } catch (e: Exception) {
                     audioFile?.delete()
-                    Log.e(TAG, "Gemini TTS failed, falling back to Android TTS.", e)
+                    Log.e(TAG, "Gemini TTS failed, falling back to Android TTS. ${DiagnosticsLog.describe(e)}")
+                    DiagnosticsLog.append(
+                        this@MyAccessibilityService,
+                        "Gemini TTS failed after retry. Falling back to Android TTS. ${DiagnosticsLog.describe(e)}"
+                    )
                     withContext(Dispatchers.Main) {
                         synthesizeAndroidSpeech(outputContent)
                     }
+                } finally {
+                    stopProcessingHeartbeat()
+                    withContext(Dispatchers.Main) {
+                        showReadScreenButton()
+                    }
                 }
             }
+            return true
         } else {
             synthesizeAndroidSpeech(outputContent)
+            return false
         }
     }
 
@@ -297,16 +321,19 @@ class MyAccessibilityService : AccessibilityService() {
             }
 
             Log.w(TAG, "Gemini TTS failed with HTTP ${e.statusCode}; retrying once.")
+            DiagnosticsLog.append(this, "Gemini TTS HTTP ${e.statusCode}. Retrying once.")
             delay(1_000)
             generateGeminiSpeech(outputContent)
         } catch (e: java.io.IOException) {
-            Log.w(TAG, "Gemini TTS network request failed; retrying once.", e)
+            Log.w(TAG, "Gemini TTS network request failed; retrying once. ${DiagnosticsLog.describe(e)}")
+            DiagnosticsLog.append(this, "Gemini TTS network failure. Retrying once.")
             delay(1_000)
             generateGeminiSpeech(outputContent)
         }
     }
 
     private fun synthesizeAndroidSpeech(outputContent: String) {
+        DiagnosticsLog.append(this, "Android TTS file synthesis started.")
         val utteranceId = "orion_reading_${System.currentTimeMillis()}"
         val audioFile = File(cacheDir, "$utteranceId.wav")
         pendingAndroidSynthesisId = utteranceId
@@ -314,13 +341,16 @@ class MyAccessibilityService : AccessibilityService() {
         if (result != TextToSpeech.SUCCESS) {
             pendingAndroidSynthesisId = null
             audioFile.delete()
+            DiagnosticsLog.append(this, "Android TTS file synthesis could not start. Using direct speech.")
             fallbackToDirectAndroidSpeech(outputContent)
         }
     }
 
     private fun fallbackToDirectAndroidSpeech(outputContent: String) {
         Log.i(TAG, "Playing reading directly through Android TTS.")
+        DiagnosticsLog.append(this, "Using direct Android TTS speech.")
         showPlaybackControls()
+        directAndroidSpeechPlaying = true
         speakToUser(outputContent, true)
     }
 
@@ -447,8 +477,10 @@ class MyAccessibilityService : AccessibilityService() {
             }
             showPlaybackControls()
             updatePlayPauseButton(true)
+            DiagnosticsLog.append(this, "Cached reading audio playback started.")
         } catch (e: Exception) {
             Log.e(TAG, "Cached audio playback failed, falling back to Android TTS.", e)
+            DiagnosticsLog.append(this, "Cached audio playback failed. ${DiagnosticsLog.describe(e)}")
             stopPlayback()
             audioFile.delete()
             fallbackToDirectAndroidSpeech(lastReadingText ?: return)
@@ -517,11 +549,71 @@ class MyAccessibilityService : AccessibilityService() {
         )
     }
 
+    private fun startProcessingHeartbeat() {
+        stopProcessingHeartbeat()
+        processingHeartbeatJob = serviceScope.launch {
+            while (isActive) {
+                vibrate(VibrationEffect.EFFECT_TICK)
+                delay(1_000)
+            }
+        }
+    }
+
+    private fun stopProcessingHeartbeat() {
+        processingHeartbeatJob?.cancel()
+        processingHeartbeatJob = null
+    }
+
+    private fun showThinkingButton() {
+        actionBarScreenButton?.apply {
+            text = getString(R.string.action_thinking)
+            contentDescription = getString(R.string.action_thinking)
+            isEnabled = false
+            visibility = View.VISIBLE
+        }
+    }
+
+    private fun showSynthesizingButton() {
+        actionBarScreenButton?.apply {
+            text = getString(R.string.action_synthesizing)
+            contentDescription = getString(R.string.action_synthesizing)
+            isEnabled = false
+            visibility = View.VISIBLE
+        }
+    }
+
+    private fun showReadScreenButton() {
+        actionBarScreenButton?.apply {
+            text = appStrings[appLanguage]?.get("read_screen")
+            contentDescription = appStrings[appLanguage]?.get("read_screen")
+            isEnabled = true
+            visibility = View.VISIBLE
+        }
+    }
+
+    private fun refreshGeminiClient() {
+        val preferences = PreferenceManager.getDefaultSharedPreferences(this)
+        val storedApiKey = preferences.getString("pref_gemini_api_key", "").orEmpty()
+        apiKey = storedApiKey.ifEmpty { BuildConfig.GEMINI_API_KEY }
+        generativeModel = GenerativeModel(
+            modelName = generativeModelName,
+            apiKey = apiKey,
+            generationConfig = generativeModelConfig,
+            safetySettings = safetySettings
+        )
+        DiagnosticsLog.append(this, "Gemini client refreshed. hasApiKey=${apiKey.isNotBlank()}")
+    }
+
     suspend fun chatWithGemini(imagePath: String) {
+        DiagnosticsLog.append(this, "Screen analysis started.")
+        startProcessingHeartbeat()
+        var keepHeartbeatForAudio = false
         try {
             appStrings[appLanguage]?.get("processing")?.let { speakToUser(it, true) }
 
-            vibrate(VibrationEffect.EFFECT_TICK)
+            if (apiKey.isNullOrBlank()) {
+                throw MissingApiKeyException()
+            }
 
             val prompt =
                 appStrings[appLanguage]?.get(readingPromptKey)
@@ -535,31 +627,48 @@ class MyAccessibilityService : AccessibilityService() {
 
             var outputContent = ""
 
-            generativeModel?.generateContentStream(inputContent)?.collect { response ->
-                vibrate(VibrationEffect.EFFECT_TICK)
+            val model = generativeModel ?: throw IllegalStateException("Gemini model is not initialized.")
+            model.generateContentStream(inputContent).collect { response ->
                 outputContent += response.text
             }
 
-
-            var imageFile = File(imagePath)
-            try {
-                imageFile.delete()
-                Log.i(TAG, "File removed: ${imagePath}")
-            } catch (fileException: Exception) {
-                Log.d(TAG, fileException.toString())
+            if (outputContent.isBlank()) {
+                throw EmptyScreenAnalysisException()
             }
 
-            Log.i(TAG, outputContent)
+            DiagnosticsLog.append(this, "Screen analysis completed. characters=${outputContent.length}")
             vibrate(VibrationEffect.EFFECT_HEAVY_CLICK)
             withContext(Dispatchers.Main) {
-                speakGeneratedText(outputContent)
+                keepHeartbeatForAudio = speakGeneratedText(outputContent)
             }
 
+        } catch (e: MissingApiKeyException) {
+            DiagnosticsLog.append(this, "Screen analysis stopped: Gemini API key is missing.")
+            speakToUser(getString(R.string.error_api_key_missing), true)
+        } catch (e: EmptyScreenAnalysisException) {
+            DiagnosticsLog.append(this, "Screen analysis failed: Gemini returned an empty description.")
+            speakToUser(getString(R.string.error_screen_analysis_empty), true)
         } catch (e: Exception) {
-            speakToUser(appStrings[appLanguage]?.get("something_went_wrong").toString(), true)
-            Log.e(TAG, e.localizedMessage)
+            DiagnosticsLog.append(this, "Screen analysis failed. ${DiagnosticsLog.describe(e)}")
+            speakToUser(getString(R.string.error_screen_analysis_failed), true)
+            Log.e(TAG, "Screen analysis failed. ${DiagnosticsLog.describe(e)}")
+        } finally {
+            if (!keepHeartbeatForAudio) {
+                stopProcessingHeartbeat()
+                withContext(Dispatchers.Main) {
+                    showReadScreenButton()
+                }
+            }
+            val imageFile = File(imagePath)
+            if (imageFile.delete()) {
+                Log.i(TAG, "File removed: $imagePath")
+            }
         }
     }
+
+    private class MissingApiKeyException : IllegalStateException()
+
+    private class EmptyScreenAnalysisException : IllegalStateException()
 
     override fun onServiceConnected() {
         // Vibrator
@@ -575,6 +684,16 @@ class MyAccessibilityService : AccessibilityService() {
         voiceEngine = preferences.getString("pref_orion_voice_engine", "android").toString()
         geminiVoice = preferences.getString("pref_orion_gemini_voice", "Kore").toString()
         hapticFeedbackEnabled = preferences.getBoolean("pref_orion_haptic_feedback", true)
+        DiagnosticsLog.append(
+            this,
+            DiagnosticsLog.sessionSummary(
+                this,
+                newLang,
+                newReadingPromptKey,
+                voiceEngine,
+                newApiKey.isNotEmpty() || !apiKey.isNullOrBlank()
+            )
+        )
 
         if (newLang.isNotEmpty()) {
             appLanguage = newLang
@@ -637,12 +756,7 @@ class MyAccessibilityService : AccessibilityService() {
         )
 
         // Create LLM Client
-        generativeModel = GenerativeModel(
-            modelName = generativeModelName,
-            apiKey = apiKey,
-            generationConfig = generativeModelConfig,
-            safetySettings = safetySettings
-        )
+        refreshGeminiClient()
 
         // Set-up TTS
         textToSpeech = TextToSpeech(this) { status ->
@@ -665,8 +779,10 @@ class MyAccessibilityService : AccessibilityService() {
                     TAG,
                     "TextToSpeech Initialization Success: ${appLanguage}, ${desiredVoice}, ${newTtsSpeed}"
                 )
+                DiagnosticsLog.append(this, "Android TTS initialized successfully.")
             } else {
                 Log.d(TAG, "TextToSpeech Initialization Failed")
+                DiagnosticsLog.append(this, "Android TTS initialization failed. status=$status")
             }
         }
         textToSpeech.setOnUtteranceProgressListener(
@@ -674,6 +790,10 @@ class MyAccessibilityService : AccessibilityService() {
                 override fun onStart(utteranceId: String?) {}
 
                 override fun onDone(utteranceId: String?) {
+                    if (utteranceId == TAG) {
+                        directAndroidSpeechPlaying = false
+                        return
+                    }
                     if (utteranceId != pendingAndroidSynthesisId) {
                         File(cacheDir, "$utteranceId.wav").delete()
                         return
@@ -683,14 +803,20 @@ class MyAccessibilityService : AccessibilityService() {
                     pendingAndroidSynthesisId = null
                     serviceScope.launch(Dispatchers.Main) {
                         if (audioFile.exists()) {
+                            DiagnosticsLog.append(this@MyAccessibilityService, "Android TTS file synthesis completed.")
                             playAudioFile(audioFile)
                         } else {
+                            DiagnosticsLog.append(this@MyAccessibilityService, "Android TTS file synthesis produced no file.")
                             fallbackToDirectAndroidSpeech(lastReadingText ?: return@launch)
                         }
                     }
                 }
 
                 override fun onError(utteranceId: String?) {
+                    if (utteranceId == TAG) {
+                        directAndroidSpeechPlaying = false
+                        return
+                    }
                     if (utteranceId != pendingAndroidSynthesisId) {
                         File(cacheDir, "$utteranceId.wav").delete()
                         return
@@ -698,6 +824,7 @@ class MyAccessibilityService : AccessibilityService() {
 
                     pendingAndroidSynthesisId = null
                     File(cacheDir, "$utteranceId.wav").delete()
+                    DiagnosticsLog.append(this@MyAccessibilityService, "Android TTS file synthesis failed.")
                     serviceScope.launch(Dispatchers.Main) {
                         fallbackToDirectAndroidSpeech(lastReadingText ?: return@launch)
                     }
@@ -741,10 +868,12 @@ class MyAccessibilityService : AccessibilityService() {
         }
 
         actionBarScreenButton?.setOnClickListener {
-            if (textToSpeech.isSpeaking || geminiSpeechJob?.isActive == true ||
+            if (directAndroidSpeechPlaying || geminiSpeechJob?.isActive == true ||
                 pendingAndroidSynthesisId != null || mediaPlayer?.isPlaying == true
             ) {
+                DiagnosticsLog.append(this, "Read screen button stopped active reading or audio preparation.")
                 textToSpeech.stop()
+                directAndroidSpeechPlaying = false
                 geminiSpeechJob?.cancel()
                 pendingAndroidSynthesisId = null
                 stopPlayback()
@@ -753,6 +882,7 @@ class MyAccessibilityService : AccessibilityService() {
                 actionBarScreenButton?.visibility = View.GONE
                 hidePlaybackControls()
                 vibrate(VibrationEffect.EFFECT_HEAVY_CLICK)
+                DiagnosticsLog.append(this, "Read screen action requested.")
                 requestScreenCapture() // Re-trigger screen capture permission if needed
             }
         }
@@ -776,8 +906,14 @@ class MyAccessibilityService : AccessibilityService() {
 
     // Request screen capture permission
     private fun requestScreenCapture() {
+        refreshGeminiClient()
         val captureIntent = Intent(this, ScreenCaptureActivity::class.java)
-        captureIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        captureIntent.addFlags(
+            Intent.FLAG_ACTIVITY_NEW_TASK or
+                Intent.FLAG_ACTIVITY_MULTIPLE_TASK or
+                Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS or
+                Intent.FLAG_ACTIVITY_NO_HISTORY
+        )
         startActivity(captureIntent)
         Log.d(TAG, "Requesting screen capture permission...")
     }
@@ -833,6 +969,7 @@ class MyAccessibilityService : AccessibilityService() {
             textToSpeech.shutdown()
         }
         geminiSpeechJob?.cancel()
+        stopProcessingHeartbeat()
         stopPlayback()
         lastAudioFile?.delete()
         val wm = getSystemService(WINDOW_SERVICE) as WindowManager
