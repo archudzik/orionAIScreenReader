@@ -507,6 +507,10 @@ class MyAccessibilityService : AccessibilityService() {
         playbackLayout?.visibility = View.VISIBLE
     }
 
+    private fun hidePlaybackControls() {
+        playbackLayout?.visibility = View.GONE
+    }
+
     private fun updatePlayPauseButton(isPlaying: Boolean) {
         playPauseButton?.text = getString(
             if (isPlaying) R.string.action_pause_reading else R.string.action_play_reading
@@ -747,6 +751,7 @@ class MyAccessibilityService : AccessibilityService() {
                 vibrate(VibrationEffect.EFFECT_DOUBLE_CLICK)
             } else {
                 actionBarScreenButton?.visibility = View.GONE
+                hidePlaybackControls()
                 vibrate(VibrationEffect.EFFECT_HEAVY_CLICK)
                 requestScreenCapture() // Re-trigger screen capture permission if needed
             }
