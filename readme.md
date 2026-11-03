@@ -94,3 +94,11 @@ Contributions are welcome! Please fork the repository, create a feature branch, 
 
 ## License
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Privacy and legacy release files
+
+When screen reading is requested, Orion can capture content visible on the device and send it to the configured Gemini service for processing. Avoid using it on sensitive screens containing passwords, health information, financial details, or other confidential material unless you understand and accept the external service's data handling. Review the service's applicable privacy terms before enabling cloud processing. Android text-to-speech and online Gemini speech synthesis are different processing paths.
+
+Keep your Gemini API key private. Do not include it in screenshots, bug reports, shared logs, or commits. Redaction in the app's diagnostic sharing feature is useful but should not be treated as a guarantee that every sensitive value in a diagnostic entry is removed.
+
+The checked-in `app/release/app-release.apk` is preserved as a legacy distribution artifact; it is not automatically rebuilt or verified by this documentation update. Likewise, the tracked `.idea/` files are retained so existing developer setups remain intact. Review the APK's release provenance and permissions before installing it on a device with sensitive content.
